@@ -6,4 +6,8 @@ In some cases extra arguments will be required to continue using older XR releas
 
 ## v1.0
 
-Supports XR 7.7.1 only (the first and most recent released version of XRd).
+Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd).
+
+### XR 7.7.1
+
+- Does not support the `--boot-log-level` arg in `launch-xrd`.

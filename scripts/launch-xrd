@@ -64,6 +64,9 @@ Optional arguments:
                                 up after boot, by default ZTP is disabled
                                 (cannot be used with IP snooping)
   --ztp-config FILE             Enable ZTP with custom ZTP ini configuration
+  --boot-log-level LEVEL        Control the level at which boot logging starts
+                                being printed to the console, one of: ERROR,
+                                WARNING (default), INFO, DEBUG
   --args '<arg1> <arg2> ...'    Extra arguments to pass to '<ctr_mgr> run'
 
 XRd Control Plane arguments:
@@ -231,6 +234,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ztp-config )
             ZTP_CONFIG=$2
+            shift 2
+            ;;
+        --boot-log-level )
+            BOOT_LOG_LEVEL=$2
             shift 2
             ;;
         --privileged )
@@ -438,6 +445,9 @@ if [[ $DISK_LIMIT ]]; then
 fi
 if [[ $IS_ZTP_ENABLED == 1 ]]; then
     env_args+=("--env" "XR_ZTP_ENABLE=1")
+fi
+if [[ $BOOT_LOG_LEVEL ]]; then
+    env_args+=("--env" "XR_BOOT_LOG_LEVEL=$BOOT_LOG_LEVEL")
 fi
 
 #
