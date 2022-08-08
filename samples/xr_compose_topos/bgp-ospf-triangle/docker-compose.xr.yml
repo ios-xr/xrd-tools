@@ -1,0 +1,114 @@
+# Copyright 2020-2022 Cisco Systems Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Topology
+# --------------
+#      lab1
+#       |
+#      xrd1
+#     /    \
+#  xrd2 -- xrd3
+#   |
+#  lab2
+
+# Networks
+# --------------
+# host (172.28.0.1/16): xrd1 172.28.0.10, xrd2 172.28.0.20, xrd3 172.28.0.30
+# lab1-xrd1 (172.30.1.0/24):  172.30.1.100 - 172.30.1.200 (<lab1> - Gi0/0/0/0)
+# lab2-xrd2 (172.31.1.0/24):  172.31.1.100 - 172.31.1.200 (<lab2> - Gi0/0/0/2)
+# xrd1-xrd2 (10.0.3.0/24):  10.0.3.1 - 10.0.3.2 (Gi0/0/0/1 - Gi0/0/0/0)
+# xrd1-xrd3 (10.0.4.0/24):  10.0.4.1 - 10.0.4.3 (Gi0/0/0/6 - Gi0/0/0/6)
+# xrd2-xrd3 (10.0.5.0/24):  10.0.5.2 - 10.0.5.3 (Gi0/0/0/1 - Gi0/0/0/1)
+
+services:
+  lab1:
+    non_xr: true
+    image: alpine:3.15
+    container_name: lab1
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    command: /bin/sh -c "ip route add 10.0.0.0/8 via 172.30.1.200 && /bin/sh"
+    networks:
+      lab1-xrd1:
+        ipv4_address: 172.30.1.100
+  lab2:
+    non_xr: true
+    image: alpine:3.15
+    container_name: lab2
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    command: /bin/sh -c "ip route add 10.0.0.0/8 via 172.31.1.200 && /bin/sh"
+    networks:
+      lab2-xrd2:
+        ipv4_address: 172.31.1.100
+  xrd1:
+    container_name: xrd1
+    xr_startup_cfg: xrd1_xrconf.cfg
+    xr_interfaces:
+      - Mg0/RP0/CPU0/0
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Gi0/0/0/6
+    networks:
+      lab1-xrd1:
+        ipv4_address: 172.30.1.200
+  xrd2:
+    container_name: xrd2
+    xr_startup_cfg: xrd2_xrconf.cfg
+    xr_interfaces:
+      - Mg0/RP0/CPU0/0
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Gi0/0/0/2
+    networks:
+      lab2-xrd2:
+        ipv4_address: 172.31.1.200
+  xrd3:
+    container_name: xrd3
+    xr_startup_cfg: xrd3_xrconf.cfg
+    xr_interfaces:
+      - Mg0/RP0/CPU0/0
+      - Gi0/0/0/1
+      - Gi0/0/0/6
+
+xr_l2networks:
+  - ["xrd1:Gi0/0/0/1", "xrd2:Gi0/0/0/0"]
+  - ["xrd1:Gi0/0/0/6", "xrd3:Gi0/0/0/6"]
+  - ["xrd2:Gi0/0/0/1", "xrd3:Gi0/0/0/1"]
+
+networks:
+  mgmt:
+    xr_interfaces:
+      - xrd1:Mg0/RP0/CPU0/0
+      - xrd2:Mg0/RP0/CPU0/0
+      - xrd3:Mg0/RP0/CPU0/0
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+  lab1-xrd1:
+    ipam:
+      config:
+        - subnet: 172.30.1.0/24
+    xr_interfaces:
+      - xrd1:Gi0/0/0/0
+  lab2-xrd2:
+    ipam:
+      config:
+        - subnet: 172.31.1.0/24
+    xr_interfaces:
+      - xrd2:Gi0/0/0/2

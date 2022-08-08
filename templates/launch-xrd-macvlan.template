@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+
+# Copyright 2020-2022 Cisco Systems Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# Example script for launching XRd with external connectivity.
+# Macvlan interfaces are used for XRd data and manageability ports so that
+# physical interfaces can provide the data and management connectivity.
+#
+
+# This file contains a set of example steps that form a template for how to
+# run XRd using macvlan interfaces to enable external data and manageability
+# connectivity. It may be used as an example for how to use macvlan interfaces
+# and should be modified for a specific use case or topoology.
+#
+# It sets up the following example topology:
+#________________
+#                |
+# XRd host       |
+#  _______       |
+# |      |-------|-----> data port 1
+# |  XRd |-------|-----> data port 2
+# | _____|-------|-----> manageability port
+#           |    |
+#      local     |
+#  manageability |
+# _______________|
+#
+# There are two data ports that are directly accessible via physical
+# interfaces, and a manageability port that is accessible via a physical
+# interface, as well as from the XRd host.
+
+set -e
+
+# ===================================
+# Create data port macvlan interfaces
+# ===================================
+
+# Create macvlan interfaces to use as data ports. This produces new interfaces
+# with their own MAC address that 'share' the physical interface specified
+# e.g. eth0 or eth1.
+sudo ip link add eth0-mac link eth0 type macvlan mode bridge
+sudo ip link add eth1-mac link eth1 type macvlan mode bridge
+
+# ============================================
+# Create manageability port macvlan interfaces
+# ============================================
+
+# Create macvlan interface to use for mangaeability, as well a locally
+# terminating maclvan interface on the same network to enable manageability
+# access from the host. This locally terminating interface should be given
+# an IP address that routes to the XRd manageability port (e.g. on the same
+# subnet).
+sudo ip link add eth2-mgbl link eth2 type macvlan mode bridge
+sudo ip link add eth2-mgbl-local link eth2 type macvlan mode bridge
+sudo ip address add 172.50.1.4/24 dev eth2-mgbl-local
+sudo ip link set eth2-mgbl-local up
+
+# =================
+# Create container
+# =================
+
+# Create the container:
+# - The XR_INTERFACES and XR_MGMT_INTERFACES specify the data and management
+#   created macvlan interfaces respectively. They are in the format of a
+#   semicolon (and optional space) separated list of interfaces, each of the
+#   form:
+#     <underlying interface type>:<underlying interface identifier>,<optional flags>
+#   Where the underlying interface type must be "linux" for XRd Control Plane,
+#   and the underlying interface identifier is the linux interface name.
+#   The optional flags are:
+#     - xr_name=<XR name>
+#     - chksum: enable checksum offload counteract - may be required for
+#               simulations using virtual interfaces.
+#     - snoop_v4/snoop_v6: add XR interface IPv4/IPv6 address configuration
+#               corresponding to the IP address assigned by the container
+#               orchestrator
+#     - snoop_v4_default_route/snoop_v6_default_route: add XR IPv4/IPv6 default
+#               route configuration.
+#   flags forenvironment variables map the
+#   created macvlan interfaces to XR interfaces, and allow speci.
+# - --net none is specified so that the container is not added to the default
+#   Docker bridge network (this would add an extra unnecessary interface to
+#   the container).
+# - Startup config is specified here using the XR_EVERY_BOOT_CONFIG environment
+#   variable. This is optional.
+# - A script to run after all config has been applied may be specified using
+#   the XR_EVERY_BOOT_SCRIPT and/or the XR_FIRST_BOOT_SCRIPT. If both
+#   are specified, the 'first boot' script will be used in preference to the
+#   'every boot' script on the first boot. This is optional.
+# - The image name should be updated to reflect the image used for a specific
+#   use case.
+# - Other arguments to 'docker create' are just standard parameters for XRd
+#  (see launch-xrd).
+docker create \
+--name xrd --cap-drop all \
+--cap-add AUDIT_WRITE --cap-add CHOWN --cap-add DAC_OVERRIDE \
+--cap-add FOWNER --cap-add FSETID --cap-add KILL \
+--cap-add MKNOD --cap-add NET_BIND_SERVICE --cap-add NET_RAW \
+--cap-add SETFCAP --cap-add SETGID --cap-add SETUID \
+--cap-add SETPCAP --cap-add SYS_CHROOT --cap-add SYS_ADMIN \
+--cap-add SYS_NICE --cap-add SYS_PTRACE --cap-add SYS_RESOURCE \
+--cap-add NET_ADMIN --cap-add IPC_LOCK \
+--device /dev/fuse --device /dev/net/tun \
+--security-opt apparmor=unconfined \
+--env XR_INTERFACES="linux:eth0-mac,xr_name=Gi0/0/0/0;linux:eth1-mac,xr_name=Gi0/0/0/1" \
+--env XR_MGMT_INTERFACES="linux:eth2-mgbl,xr_name=Mg0/RP0/CPU0/0" \
+--env XR_EVERY_BOOT_CONFIG=/etc/xrd/startup.cfg \
+--mount type=bind,source=/xr-startup-cfg,target=/etc/xrd/startup.cfg \
+--net none \
+-it localhost/ios-xr:7.4.1.31I
+
+# =================
+# Start container
+# =================
+
+docker start xrd
+
+# ============================================================
+# Move macvlan interfaces into XRd container network namespace
+# ============================================================
+
+# Find the PID of the container, and use it to move desired interfaces into
+# the container network namespace.
+pid=$(docker inspect xrd -f '{{.State.Pid}}')
+sudo ip link set eth0-mac netns $pid
+sudo ip link set eth1-mac netns $pid
+sudo ip link set eth2-mgbl netns $pid
