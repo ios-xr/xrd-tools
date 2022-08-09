@@ -394,8 +394,6 @@ else
         # AppArmor and SELinux are not supported with the default profiles.
         "--security-opt" "apparmor=unconfined"
         "--security-opt" "label=disable"
-        # Pass through the host's cgroup mount, needed by systemd.
-        "-v" "/sys/fs/cgroup:/sys/fs/cgroup:ro"
     )
     # Add XRd vRouter specific unprivileged arguments:
     if [[ $PLATFORM == "xrd-vrouter" ]]; then

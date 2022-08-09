@@ -1632,14 +1632,6 @@ class XRCompose:
             service_yaml.setdefault("devices", []).extend(
                 ["/dev/fuse", "/dev/net/tun"]
             )
-            service_yaml.setdefault("volumes", []).append(
-                {
-                    "type": "bind",
-                    "source": "/sys/fs/cgroup",
-                    "target": "/sys/fs/cgroup",
-                    "read_only": True,
-                }
-            )
 
     def add_service_networks(self, service: Service) -> None:
         """

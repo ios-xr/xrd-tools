@@ -236,6 +236,41 @@ def _is_module_loaded(module: str) -> bool:
     return cmd_is_ok(f"lsmod | grep -q '^{module} '")
 
 
+def _mount_exists(path: str, *, type_: Optional[str] = None) -> bool:
+    """Check whether the specified mount exists."""
+    cmd = ["findmnt", path]
+    if type_:
+        cmd.extend(["-t", type_])
+    proc = subprocess.run(
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5
+    )
+    return proc.returncode == 0
+
+
+def _get_cgroup_version() -> int:
+    """
+    Find the cgroup version in use by inspecting /sys/fs/cgroup/.
+
+    :return:
+        The cgroup version in use, either 1 or 2.
+    """
+    if (
+        _mount_exists("/sys/fs/cgroup", type_="cgroup2")
+        and len(
+            open(os.path.join("/sys/fs/cgroup", "cgroup.controllers")).read()
+        )
+        > 0
+    ):
+        return 2
+    elif any(
+        _mount_exists(subpath, type_="cgroup")
+        for subpath in glob.glob(os.path.join("/sys/fs/cgroup", "*"))
+    ):
+        return 1
+    else:
+        raise Exception("Unable to detect cgroup version in use")
+
+
 # -----------------------------------------------------------------------------
 # Checks
 # -----------------------------------------------------------------------------
@@ -376,78 +411,25 @@ def check_base_kernel_modules() -> CheckFuncReturn:
     )
 
 
-def check_cgroups_version() -> CheckFuncReturn:
-    """Check the cgroups version is supported."""
+def check_cgroups() -> CheckFuncReturn:
+    """Check cgroups are correctly set up, also checking cgroups version."""
     try:
-        cmd = "stat -fc %T /sys/fs/cgroup/"
-        output, _ = run_cmd(shlex.split(cmd))
-        cgroupfs = str(output.strip())
-    except subprocess.SubprocessError:
+        version = _get_cgroup_version()
+    except Exception:
         return (
-            CheckState.WARNING,
-            f"Error running {cmd!r} to determine the cgroups\n"
-            "version - /sys/fs/cgroup is expected to be a cgroup v1 mount.",
+            CheckState.FAILED,
+            "Error trying to determine the cgroups version - /sys/fs/cgroup is expected to\n"
+            "contain cgroup v1 mounts.",
         )
 
-    if cgroupfs == "cgroup2fs":
-        version = 2
+    if version == 2:
         return (
             CheckState.FAILED,
             f"Cgroups version {version} is in use, but this is not supported by XRd.\n"
             "Please use cgroups version 1.",
         )
-
-    elif cgroupfs != "tmpfs":
-        return (
-            CheckState.FAILED,
-            "Unrecognised /sys/fs/cgroup mount, cgroups must be version 1.",
-        )
-
-    else:
-        version = 1
-        return CheckState.SUCCESS, f"v{version}"
-
-
-def check_systemd_mounts() -> CheckFuncReturn:
-    """Check the required systemd mounts are present."""
-    expected_mounts_msg = (
-        "/sys/fs/cgroup must be mounted (read-only or read-write) and\n"
-        "/sys/fs/cgroup/systemd must be mounted read-write."
-    )
-    try:
-        output, _ = run_cmd(["mount"])
-    except subprocess.SubprocessError:
-        return (
-            CheckState.WARNING,
-            "Error running 'mount' to check the required systemd mounts exist.\n"
-            + expected_mounts_msg,
-        )
-
-    mounts = []
-    for line in output.splitlines():
-        match = re.match(
-            r"\S+ on (?P<path>/\S*) type \S+ \((?P<mode>rw|ro),", line
-        )
-        if match:
-            mounts.append(match.groups())
-
-    if "/sys/fs/cgroup" not in [m[0] for m in mounts]:
-        return (
-            CheckState.FAILED,
-            "/sys/fs/cgroup mount not found.\n" + expected_mounts_msg,
-        )
-
-    if ("/sys/fs/cgroup/systemd", "rw") not in mounts:
-        return (
-            CheckState.FAILED,
-            "/sys/fs/cgroup/systemd not read-write mounted on host.\n"
-            + expected_mounts_msg,
-        )
-
-    return (
-        CheckState.SUCCESS,
-        "/sys/fs/cgroup and /sys/fs/cgroup/systemd mounted correctly.",
-    )
+    assert version == 1
+    return CheckState.SUCCESS, f"v{version}"
 
 
 def check_inotify_limits(setting: str) -> CheckFuncReturn:
@@ -1155,8 +1137,7 @@ BASE_CHECKS = [
     Check(
         "Base kernel modules", check_base_kernel_modules, ["Kernel version"]
     ),
-    Check("Cgroups version", check_cgroups_version, []),
-    Check("systemd mounts", check_systemd_mounts, ["Cgroups version"]),
+    Check("Cgroups", check_cgroups, []),
     Check(
         "Inotify max user instances",
         functools.partial(check_inotify_limits, "max_user_instances"),

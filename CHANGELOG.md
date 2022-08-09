@@ -6,6 +6,8 @@
 Changes added to the preview for 7.8.1.
 
 - Add `--boot-log-level` arg in `launch-xrd` (supported in XR 7.8.1 onwards)
+- Stop passing host `/sys/fs/cgroup` mount through to the container
+- Update cgroup check in `host-check` and remove corresponding "Systemd mounts" check (no longer required for XR 7.8.1 onwards)
 
 
 ## v1 (active)

@@ -899,40 +899,59 @@ class TestBaseKernelModules(_CheckTestBase):
         assert not success
 
 
-class TestCgroupsVersion(_CheckTestBase):
-    """Tests for the cgroups version check."""
+class TestCgroups(_CheckTestBase):
+    """Tests for the cgroups check."""
 
     check_group = "base"
-    check_name = "Cgroups version"
-    cmds = ["stat -fc %T /sys/fs/cgroup/"]
+    check_name = "Cgroups"
+    cmds = [
+        "findmnt /sys/fs/cgroup -t cgroup2",
+        "findmnt /sys/fs/cgroup/memory -t cgroup",
+    ]
 
-    def test_success(self, capsys):
-        """Test the success case."""
-        success, output = self.perform_check(capsys, cmd_effects="tmpfs")
+    @staticmethod
+    @pytest.fixture(scope="class", autouse=True)
+    def mock_cgroup_dirs():
+        with mock.patch("glob.glob", return_value=["/sys/fs/cgroup/memory"]):
+            yield
+
+    def test_v1_success(self, capsys):
+        """Test the cgroups v1 success case."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[mock.Mock(returncode=1), mock.Mock(returncode=0)],
+        )
         assert output == textwrap.dedent(
             """\
-            PASS -- Cgroups version (v1)
+            PASS -- Cgroups (v1)
             """
         )
         assert success
 
     def test_unknown_version(self, capsys):
         """Test the case where the cgroups version is unrecognised."""
-        success, output = self.perform_check(capsys, cmd_effects="unknown")
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[mock.Mock(returncode=1), mock.Mock(returncode=1)],
+        )
         assert output == textwrap.dedent(
             """\
-            FAIL -- Cgroups version
-                    Unrecognised /sys/fs/cgroup mount, cgroups must be version 1.
+            FAIL -- Cgroups
+                    Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
+                    contain cgroup v1 mounts.
             """
         )
         assert not success
 
-    def test_v2(self, capsys):
+    def test_v2_unsupported(self, capsys):
         """Test the case where v2 cgroups are in use."""
-        success, output = self.perform_check(capsys, cmd_effects="cgroup2fs")
+        with mock.patch("builtins.open", mock.mock_open(read_data="memory")):
+            success, output = self.perform_check(
+                capsys, cmd_effects=[mock.Mock(returncode=0), None]
+            )
         assert output == textwrap.dedent(
             """\
-            FAIL -- Cgroups version
+            FAIL -- Cgroups
                     Cgroups version 2 is in use, but this is not supported by XRd.
                     Please use cgroups version 1.
             """
@@ -946,118 +965,9 @@ class TestCgroupsVersion(_CheckTestBase):
         )
         assert output == textwrap.dedent(
             """\
-            WARN -- Cgroups version
-                    Error running 'stat -fc %T /sys/fs/cgroup/' to determine the cgroups
-                    version - /sys/fs/cgroup is expected to be a cgroup v1 mount.
-            """
-        )
-        assert not success
-
-
-class TestSystemdMounts(_CheckTestBase):
-    """Tests for the systemd mounts check."""
-
-    check_group = "base"
-    check_name = "systemd mounts"
-    deps = ["Cgroups version"]
-    cmds = ["mount"]
-
-    def test_success(self, capsys):
-        """Test the success case."""
-        cmd_output = textwrap.dedent(
-            """
-            tmpfs on /sys/fs/cgroup type tmpfs (ro,nosuid,nodev,noexec,mode=755)
-            cgroup on /sys/fs/cgroup/systemd type cgroup (rw,nosuid,nodev,noexec,relatime,xattr)
-            """
-        )
-        success, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == textwrap.dedent(
-            """\
-            PASS -- systemd mounts
-                    /sys/fs/cgroup and /sys/fs/cgroup/systemd mounted correctly.
-            """
-        )
-        assert success
-
-    def test_subproc_error(self, capsys):
-        """Test a subprocess error being raised."""
-        success, output = self.perform_check(
-            capsys, cmd_effects=subprocess.SubprocessError
-        )
-        assert output == textwrap.dedent(
-            """\
-            WARN -- systemd mounts
-                    Error running 'mount' to check the required systemd mounts exist.
-                    /sys/fs/cgroup must be mounted (read-only or read-write) and
-                    /sys/fs/cgroup/systemd must be mounted read-write.
-            """
-        )
-        assert not success
-
-    def test_no_cgroup_mount(self, capsys):
-        """Test no cgroup mount."""
-        cmd_output = textwrap.dedent(
-            """
-            cgroup on /sys/fs/cgroup/systemd type cgroup (rw,nosuid,nodev,noexec,relatime,xattr)
-            """
-        )
-        success, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == textwrap.dedent(
-            """\
-            FAIL -- systemd mounts
-                    /sys/fs/cgroup mount not found.
-                    /sys/fs/cgroup must be mounted (read-only or read-write) and
-                    /sys/fs/cgroup/systemd must be mounted read-write.
-            """
-        )
-        assert not success
-
-    def test_no_systemd_cgroup_mount(self, capsys):
-        """Test no cgroup/systemd mount."""
-        cmd_output = textwrap.dedent(
-            """
-            tmpfs on /sys/fs/cgroup type tmpfs (ro,nosuid,nodev,noexec,mode=755)
-            """
-        )
-        success, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == textwrap.dedent(
-            """\
-            FAIL -- systemd mounts
-                    /sys/fs/cgroup/systemd not read-write mounted on host.
-                    /sys/fs/cgroup must be mounted (read-only or read-write) and
-                    /sys/fs/cgroup/systemd must be mounted read-write.
-            """
-        )
-        assert not success
-
-    def test_systemd_cgroup_mount_readonly(self, capsys):
-        """Test cgroup/systemd mount being read-only."""
-        cmd_output = textwrap.dedent(
-            """
-            tmpfs on /sys/fs/cgroup type tmpfs (rw,nosuid,nodev,noexec,mode=755)
-            cgroup on /sys/fs/cgroup/systemd type cgroup (ro,nosuid,nodev,noexec,relatime,xattr)
-            """
-        )
-        success, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == textwrap.dedent(
-            """\
-            FAIL -- systemd mounts
-                    /sys/fs/cgroup/systemd not read-write mounted on host.
-                    /sys/fs/cgroup must be mounted (read-only or read-write) and
-                    /sys/fs/cgroup/systemd must be mounted read-write.
-            """
-        )
-        assert not success
-
-    def test_unexpected_error(self, capsys):
-        """Test unexpected error being raised."""
-        success, output = self.perform_check(
-            capsys, cmd_effects=Exception("test exception")
-        )
-        assert output == textwrap.dedent(
-            """\
-            FAIL -- systemd mounts
-                    Unexpected error: test exception
+            FAIL -- Cgroups
+                    Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
+                    contain cgroup v1 mounts.
             """
         )
         assert not success
