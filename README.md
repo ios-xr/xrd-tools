@@ -2,7 +2,7 @@
 
 This repository contains tools for working with XRd containers.
 
-See [the docs]() *[TODO: Add link to docs]* for more details and guidance.
+Accompanying documentation is coming soon.
 
 See [CHANGELOG.md](CHANGELOG.md) for a record of changes that have been made.
 
@@ -11,7 +11,7 @@ See [docs/version-compatibility.md](docs/version-compatibility.md) for the compa
 
 ## Download
 
-Download an archive from the [releases page]() *[TODO: link release page]*.
+Download an archive from the [releases page](https://github.com/ios-xr/xrd-tools/releases).
 
 
 ## System Dependencies
@@ -26,7 +26,7 @@ The `xr-compose` script also requires `docker-compose` (v1) to be on `PATH` and 
 
 ## Repo Contents
 
-See [the docs]() *[TODO: Add link to docs]* for a full explanation of how to use the tools.
+Accompanying documentation is coming soon, in the meantime the output from passing `--help` to the scripts may be helpful.
 
 ### `scripts/`
 
@@ -65,4 +65,4 @@ Minor version bumps may introduce incompatibilities with previous invocations as
 
 Thanks for considering contributing to the project!
 
-Check out the repo's [open issues]() *[TODO: Add link when repo is finalised]* or see [CONTRIBUTING.md](CONTRIBUTING.md) for more contributing guidelines.
+Check out the repo's [open issues](https://github.com/ios-xr/xrd-tools/issues) or see [CONTRIBUTING.md](CONTRIBUTING.md) for more contributing guidelines.
