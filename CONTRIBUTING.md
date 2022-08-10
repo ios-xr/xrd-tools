@@ -8,7 +8,7 @@ Please have a read through this guide before submitting issues or pull requests,
 ## Creating Issues
 
 We use GitHub issues to track public bugs.
-Report a bug or submit a feature request by [opening a new issue]() *[TODO: Add link]*.
+Report a bug or submit a feature request by [opening a new issue](https://github.com/ios-xr/xrd-tools/issues/new).
 
 Please note that unfortunately we may not be able to accept all feature requests due to time constraints within the team.
 Be sure to create an issue before submitting a PR so that we can give feedback to avoid any time being wasted if we're unable to accept a change.
