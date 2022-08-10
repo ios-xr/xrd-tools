@@ -23,6 +23,7 @@ Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd)
     ```
 - Does not support running with `--cgroupns=private`.
 - Requires `/sys/fs/cgroup/systemd/` to be mounted read-write on the host.
+- Does not support cgroups v2.
 
 
 ## v1.0

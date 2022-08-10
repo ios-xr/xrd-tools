@@ -943,7 +943,7 @@ class TestCgroups(_CheckTestBase):
         )
         assert not success
 
-    def test_v2_unsupported(self, capsys):
+    def test_v2_info(self, capsys):
         """Test the case where v2 cgroups are in use."""
         with mock.patch("builtins.open", mock.mock_open(read_data="memory")):
             success, output = self.perform_check(
@@ -951,12 +951,11 @@ class TestCgroups(_CheckTestBase):
             )
         assert output == textwrap.dedent(
             """\
-            FAIL -- Cgroups
-                    Cgroups version 2 is in use, but this is not supported by XRd.
-                    Please use cgroups version 1.
+            INFO -- Cgroups
+                    Cgroups v2 is in use - this is not supported for production environments.
             """
         )
-        assert not success
+        assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""

@@ -424,9 +424,8 @@ def check_cgroups() -> CheckFuncReturn:
 
     if version == 2:
         return (
-            CheckState.FAILED,
-            f"Cgroups version {version} is in use, but this is not supported by XRd.\n"
-            "Please use cgroups version 1.",
+            CheckState.NEUTRAL,
+            "Cgroups v2 is in use - this is not supported for production environments.",
         )
     assert version == 1
     return CheckState.SUCCESS, f"v{version}"
