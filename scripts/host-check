@@ -17,8 +17,7 @@
 # pylint: disable=subprocess-run-check
 
 """
-Script to check that the host setup is sufficient for running XR Docker
-containers.
+Check that the host is set up correctly for running XRd containers.
 """
 
 import argparse

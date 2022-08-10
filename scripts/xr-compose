@@ -1889,9 +1889,11 @@ def parse_input_args(argv: List[str]) -> argparse.Namespace:
 
     """
     parser = argparse.ArgumentParser(
-        description="Run xr-compose to translate input YAML into the full "
-        "YAML required to run docker-compose topologies. Note "
-        "that an image must be specified with -i, if images are "
+        description="Translate xr-compose input YAML into the full "
+        "YAML required to run XRd topologies using docker-compose. "
+        "Specify '--launch' to additionally launch the topology (otherwise "
+        "docker-compose can be run directly with the output YAML). "
+        "Note that an image must be specified with -i if images are "
         "not specified in the YAML input for each service."
     )
     parser.add_argument(

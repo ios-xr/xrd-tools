@@ -18,7 +18,22 @@ set -e
 
 usage () {
     echo "Usage: $(basename "$0") [-h|--help] [--new-packages] IMAGE SOURCE ..."
-    exit "$1"
+}
+
+detailed_usage () {
+    echo -n "
+$(usage)
+
+Create a new XRd image with bugfixes installed on top of a base image.
+
+Required arguments:
+  IMAGE            Loaded container image to install bugfixes on top of
+  SOURCE           Bugfix source to install from
+
+Optional arguments:
+  --new-packages   Install new packages if included in the bugfix source
+  ...              Args passed through to 'docker build'
+"
 }
 
 # ---------------------
@@ -30,7 +45,8 @@ XR_CONTAINER_INSTALL_ARGS=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h | --help )
-            usage 0
+            detailed_usage
+            exit 0
             ;;
         --new-packages )
             XR_CONTAINER_INSTALL_ARGS=("--all")
@@ -53,7 +69,8 @@ done
 
 if [[ ! $IMAGE || ! $SOURCE ]]; then
     echo "Expected 'image' and 'source' arguments." >&2
-    usage 1 >&2
+    usage >&2
+    exit 1
 fi
 
 
