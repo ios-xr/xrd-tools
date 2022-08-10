@@ -26,9 +26,11 @@ The `xr-compose` script also requires `docker-compose` (v1) to be on `PATH` and 
 
 ## Repo Contents
 
-Accompanying documentation is coming soon, in the meantime the output from passing `--help` to the scripts may be helpful.
+Accompanying documentation is coming soon.
 
 ### `scripts/`
+
+Check the usage of the scripts by passing `--help`.
 
 * `host-check` - Check the host is set up correctly for running XRd containers.
 * `launch-xrd` - Launch a single XRd container, or use `--dry-run` to see the args required.
