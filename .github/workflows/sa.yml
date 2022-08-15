@@ -21,7 +21,7 @@ jobs:
         name: ['black', 'isort', 'pylint', 'mypy']
         include:
           - name: black
-            cmd: 'black --check ./'
+            cmd: 'black --check --diff ./'
           - name: isort
             cmd: 'isort --check --diff ./'
           - name: pylint
