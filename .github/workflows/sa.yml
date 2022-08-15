@@ -1,0 +1,45 @@
+name: static-analysis
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - 'preview-[0-9]+\.[0-9]+\.[0-9]+'
+    paths-ignore:
+      - '.gitignore'
+      - '*.md'
+      - 'docs/**'
+      - 'templates/**'
+  push:
+    branches:
+      - 'gh-actions'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@master
+        with:
+          python-version: '3.7'
+
+      - name: Install python packages
+        run: |
+          pip install -U pip wheel
+          pip install -r requirements.txt
+
+      - name: Check black formatting
+        run: black --check ./
+
+      - name: Check isort import formatting
+        run: isort --check --diff ./
+
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: 'scripts/'
+          additional_files: 'apply-bugfixes launch-xrd'
+
