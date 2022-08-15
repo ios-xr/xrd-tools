@@ -13,7 +13,7 @@ on:
     branches:
       - 'gh-actions'
 jobs:
-  python:
+  python-sa:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -45,7 +45,7 @@ jobs:
       - name: Run ${{ matrix.name }}
         run: '${{ matrix.cmd }}'
 
-  bash:
+  bash-sa:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
