@@ -13,7 +13,7 @@ on:
     branches:
       - 'gh-actions'
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -32,14 +32,27 @@ jobs:
           pip install -r requirements.txt
 
       - name: Check black formatting
-        run: black --check ./
+        run: 'black --check ./'
 
       - name: Check isort import formatting
-        run: isort --check --diff ./
+        run: 'isort --check --diff ./'
+
+      - name: Pylint
+        run: 'pylint scripts/{host-check,xr-compose}'
+
+      - name: Mypy
+        run: 'mypy'
+
+  bash:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
 
       - name: Run shellcheck
         uses: ludeeus/action-shellcheck@master
         with:
           scandir: 'scripts/'
-          additional_files: 'apply-bugfixes launch-xrd'
-
