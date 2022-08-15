@@ -17,6 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      matrix:
+        name: ['black', 'isort', 'pylint', 'mypy']
+        include:
+          - name: black
+            cmd: 'black --check ./'
+          - name: isort
+            cmd: 'isort --check --diff ./'
+          - name: pylint
+            cmd: 'pylint scripts/{host-check,xr-compose}'
+          - name: mypy
+            cmd: 'mypy'
     steps:
       - uses: actions/checkout@master
         with:
@@ -31,22 +42,11 @@ jobs:
           pip install -U pip wheel
           pip install -r requirements.txt
 
-      - name: Check black formatting
-        run: 'black --check ./'
-
-      - name: Check isort import formatting
-        run: 'isort --check --diff ./'
-
-      - name: Pylint
-        run: 'pylint scripts/{host-check,xr-compose}'
-
-      - name: Mypy
-        run: 'mypy'
+      - name: Run ${{ matrix.name }}
+        run: '${{ matrix.cmd }}'
 
   bash:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     steps:
       - uses: actions/checkout@master
         with:
