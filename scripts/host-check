@@ -459,7 +459,7 @@ def check_inotify_limits(setting: str) -> CheckFuncReturn:
     )
     path = f"/proc/sys/fs/inotify/{setting}"
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             val = int(f.read().strip())
     except Exception:
         return (
@@ -497,7 +497,7 @@ def check_core_pattern() -> CheckFuncReturn:
     """XR monitors core files if core pattern is a file path and not a pipe."""
     path = "/proc/sys/kernel/core_pattern"
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             if f.readline().lstrip().startswith("|"):
                 managed_by = "the host"
             else:
@@ -523,7 +523,7 @@ def check_userspace_aslr() -> CheckFuncReturn:
     )
     path = "/proc/sys/kernel/randomize_va_space"
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             val = int(f.read().strip())
     except Exception:
         return (
@@ -546,7 +546,9 @@ def check_userspace_aslr() -> CheckFuncReturn:
 def _apparmor_is_enabled() -> bool:
     """True if AppArmor is enabled."""
     try:
-        with open("/sys/module/apparmor/parameters/enabled") as f:
+        with open(
+            "/sys/module/apparmor/parameters/enabled", encoding="utf-8"
+        ) as f:
             contents = f.read().rstrip()
     except FileNotFoundError:
         # If the file is not found apparmor is not installed.
@@ -558,7 +560,7 @@ def _apparmor_is_enabled() -> bool:
 def _selinux_is_enabled() -> bool:
     """True if SELinux is enabled."""
     try:
-        with open("/etc/selinux/config") as f:
+        with open("/etc/selinux/config", encoding="utf-8") as f:
             contents = f.read()
     except FileNotFoundError:
         # If the file is not found selinux is not installed.
@@ -737,7 +739,7 @@ def check_hugepages() -> CheckFuncReturn:
     path = "/proc/meminfo"
     msgs = []
     try:
-        with open(path, "r") as file:
+        with open(path, "r", encoding="utf-8") as file:
             hugepages_lines = [
                 L for L in file.readlines() if L.startswith("Huge")
             ]
@@ -846,7 +848,7 @@ def check_iommu() -> CheckFuncReturn:
     noiommu_filepath = "/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"
     iommu_dev_filepath = "/sys/class/iommu/*/devices/*"
     try:
-        with open(noiommu_filepath, "r") as f:
+        with open(noiommu_filepath, "r", encoding="utf-8") as f:
             no_iommu_mode = f.read().strip().upper() in ("Y", "1")
             if no_iommu_mode:
                 return (
@@ -928,7 +930,7 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
     """Check the maximum size of shared memory pages is sufficient."""
     path = "/proc/sys/kernel/shmmax"
     try:
-        with open(path) as file:
+        with open(path, encoding="utf-8") as file:
             contents = file.read().rstrip()  # remove trailing newline
             try:  # try to parse the size in GiB (2^30 bytes)
                 shared_mem_max_page_size = int(contents) / (2**30)
@@ -1124,7 +1126,7 @@ def check_bridge_iptables() -> CheckFuncReturn:
             "  sysctl -w net.bridge.bridge-nf-call-ip6tables=0"
         )
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 val = int(f.read().strip())
         except Exception:
             return (

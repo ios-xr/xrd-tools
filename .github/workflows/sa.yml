@@ -1,0 +1,60 @@
+name: static-analysis
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - 'preview-[0-9]+\.[0-9]+\.[0-9]+'
+    paths-ignore:
+      - '.gitignore'
+      - '*.md'
+      - 'docs/**'
+      - 'templates/**'
+  push:
+    branches:
+      - 'gh-actions*'
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        name: ['black', 'isort', 'pylint', 'mypy']
+        include:
+          - name: black
+            cmd: 'black --check --diff ./'
+          - name: isort
+            cmd: 'isort --check --diff ./'
+          - name: pylint
+            cmd: 'pylint scripts/{host-check,xr-compose}'
+          - name: mypy
+            cmd: 'mypy'
+    name: 'python-sa (${{ matrix.name }})'
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@master
+        with:
+          python-version: '3.7'
+
+      - name: Install python packages
+        run: |
+          pip install -U pip wheel
+          pip install -r requirements.txt
+
+      - name: Run ${{ matrix.name }}
+        run: '${{ matrix.cmd }}'
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    name: 'bash-sa (shellcheck)'
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: 'scripts/'
