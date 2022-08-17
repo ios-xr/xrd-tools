@@ -453,16 +453,20 @@ if [[ $BOOT_LOG_LEVEL ]]; then
     env_args+=("--env" "XR_BOOT_LOG_LEVEL=$BOOT_LOG_LEVEL")
 fi
 
-#
-# Run the container manager final command
-# -----------------------------------------------------------------------------
-
 if [[ $CONTAINER_NAME ]]; then
     name_args+=("--name" "$CONTAINER_NAME")
 fi
 if [[ $USE_RM == 1 ]]; then
     run_args+=("--rm")
 fi
+
+# shellcheck disable=SC2162
+read -a extra_args <<< "$EXTRA_ARGS"
+
+#
+# Run the final container 'run' command
+# -----------------------------------------------------------------------------
+
 _runcmd \
     "$CONTAINER_EXE" run -it \
         "${run_args[@]}" \
@@ -471,5 +475,5 @@ _runcmd \
         "${misc_args[@]}" \
         "${mount_args[@]}" \
         "${env_args[@]}" \
-        $EXTRA_ARGS \
+        "${extra_args[@]}" \
         "$IMAGE" || exit $?

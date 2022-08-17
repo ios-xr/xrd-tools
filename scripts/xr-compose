@@ -912,7 +912,7 @@ class XRCompose:
         self.check_input_and_output()
 
         # Load the input YAML
-        with open(self.input_file) as file:
+        with open(self.input_file, encoding="utf-8") as file:
             try:
                 self.yaml = yaml.safe_load(file)
             except yaml.YAMLError as e:
@@ -939,7 +939,7 @@ class XRCompose:
         # First try and load the output YAML - if it is invalid, we can't
         # check its artefacts, so should just carry on with trying to generate
         # new output YAML
-        with open(self.output_file) as file:
+        with open(self.output_file, encoding="utf-8") as file:
             try:
                 output_yaml = yaml.safe_load(file)
             except yaml.YAMLError:
@@ -1850,7 +1850,7 @@ class XRCompose:
         LOGGER.info(
             "Writing output docker-compose YAML to %s", self.output_file
         )
-        with open(self.output_file, "w") as file:
+        with open(self.output_file, "w", encoding="utf-8") as file:
             yaml.safe_dump(self.yaml, file, default_flow_style=False)
 
     def launch(self) -> None:
