@@ -1,0 +1,40 @@
+name: release
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - 'gh-actions-release*'
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Create tarball
+        run: |
+          files=(scripts/ samples/ templates/ LICENSE CHANGELOG.md README.md)
+          tar -zcf xrd-tools-${{github.ref_name}}.tgz "${files[@]}"
+
+      - name: Create checksum
+        run: |
+          filename="xrd-tools-${{github.ref_name}}.tgz"
+          sha256sum "$filename" > "$filename".sha256
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Release ${{ github.ref_name }}
+          body: |
+            Changes in this release
+            - First change
+            - Second change
+          files: |
+            xrd-tools-${{github.ref_name}}.tgz
+            xrd-tools-${{github.ref_name}}.tgz.sha256
+          draft: true
+          prerelease: false
