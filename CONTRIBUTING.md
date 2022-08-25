@@ -47,12 +47,14 @@ The following checks should be run:
 - [Black](https://black.readthedocs.io/) and [isort](https://pycqa.github.io/isort/) formatting (for python code)
 - [Pytest](https://docs.pytest.org/): `pytest tests/`
 
-Install the python dependencies using a venv and the `requirements.txt` file:
+Install the python dependencies (and shellcheck) using a venv and the `requirements.txt` file:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+
+For convenience all of the above can be run using the `commit-check` script, although running each check individually will give faster turnaround for diagnosing individual failures!
 
 Any python code changes should include full code coverage or justification for why this is not required.
 Coverage can be checked using the `pytest-cov` plugin:  
