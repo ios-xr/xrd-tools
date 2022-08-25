@@ -18,6 +18,11 @@ jobs:
           files=(scripts/ samples/ templates/ LICENSE CHANGELOG.md README.md)
           tar -zcf xrd-tools-${{github.ref_name}}.tgz "${files[@]}"
 
+      - name: Create checksum
+        run: |
+          filename="xrd-tools-${{github.ref_name}}.tgz"
+          sha256sum "$filename" > "$filename".sha256
+
       - name: Create release
         uses: softprops/action-gh-release@v1
         env:
@@ -28,6 +33,6 @@ jobs:
             Changes in this release
             - First change
             - Second change
-          files: xrd-tools-${{github.ref_name}}.tgz
+          files: xrd-tools-${{github.ref_name}}.tgz*
           draft: true
           prerelease: false
