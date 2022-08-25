@@ -9,6 +9,7 @@ on:
       - '*.md'
       - 'docs/**'
       - 'templates/**'
+      - 'commit-check'
   push:
     branches:
       - 'gh-actions*'
