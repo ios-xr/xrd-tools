@@ -33,6 +33,8 @@ jobs:
             Changes in this release
             - First change
             - Second change
-          files: xrd-tools-${{github.ref_name}}.tgz*
+          files: |
+            xrd-tools-${{github.ref_name}}.tgz
+            xrd-tools-${{github.ref_name}}.tgz.sha256
           draft: true
           prerelease: false
