@@ -1,0 +1,85 @@
+#!/bin/bash
+
+set -e
+
+
+function cleanup()
+{
+    echo
+    echo "Cleaning up..."
+    if [[ -d $TMP_VENV ]]; then
+        rm -r "$TMP_VENV"
+    fi
+}
+
+trap cleanup EXIT
+
+
+#=====================================================
+# Run checks
+#=====================================================
+
+FAILURES=0
+
+echo "Setting up python venv..."
+TMP_VENV=$(mktemp -d -t venv.XXXXXX)
+python3 -m venv "$TMP_VENV"
+source "$TMP_VENV/bin/activate"
+pip install -U pip wheel
+pip install -r requirements.txt
+
+echo
+echo "Running black check..."
+if ! black --check .; then
+    echo "Run 'black .' to fix the python formatting." >&2
+    FAILURES=$((FAILURES+1))
+fi
+
+echo
+echo "Running isort check..."
+if ! isort --check .; then
+    echo "Run 'isort .' to fix the python import order." >&2
+    FAILURES=$((FAILURES+1))
+fi
+
+echo
+echo "Running pylint..."
+if ! pylint scripts/{host-check,xr-compose}; then
+    echo "Pylint failed, check output and fix issues." >&2
+    FAILURES=$((FAILURES+1))
+fi
+
+echo
+echo "Running mypy..."
+if ! mypy; then
+    echo "Mypy failed, check output and fix issues." >&2
+    FAILURES=$((FAILURES+1))
+fi
+
+echo
+echo "Running shellcheck..."
+if ! shellcheck scripts/{apply-bugfixes,launch-xrd}; then
+    echo "Shellcheck failed, check output and fix issues." >&2
+    FAILURES=$((FAILURES+1))
+fi
+
+echo
+echo "Running tests..."
+if ! pytest; then
+    echo "Tests failed, check output and fix issues." >&2
+    FAILURES=$((FAILURES+1))
+fi
+
+
+#=====================================================
+# Final steps
+#=====================================================
+
+echo
+if ((FAILURES > 0)); then
+    echo "ERROR: There were $FAILURES failures"
+    exit 1
+else
+    echo "SUCCESS: All passed!"
+    exit 0
+fi
