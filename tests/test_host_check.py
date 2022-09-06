@@ -1607,7 +1607,7 @@ class TestHugepages(_CheckTestBase):
         )
         assert output == textwrap.dedent(
             """\
-            INFO -- Hugepages
+            WARN -- Hugepages
                     3.9GiB of hugepages are available.
                     The host is configured to use 2MiB hugepages - please
                     reconfigure to use 1GiB hugepages for performance reasons.
@@ -1615,7 +1615,7 @@ class TestHugepages(_CheckTestBase):
                     https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.
             """
         )
-        assert success
+        assert not success
 
     def test_unaccepted_size(self, capsys):
         """Test the case where the hugepages size is not accepted."""

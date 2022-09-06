@@ -794,7 +794,7 @@ def check_hugepages() -> CheckFuncReturn:
     try:
         if hugepages_size == 2 and _1gb_hugepages_supported():
             return (
-                CheckState.NEUTRAL,
+                CheckState.WARNING,
                 f"{hugepages_memory:.1f}GiB of hugepages are available.\n"
                 f"The host is configured to use {hugepages_size}MiB hugepages - please\n"
                 f"reconfigure to use 1GiB hugepages for performance reasons.\n"
