@@ -61,7 +61,9 @@ SHARED_MEM_MAX_PAGE_SIZE_GB = 2
 MIN_CPU_CORES_AVAILABLE = 2
 
 HUGEPAGE_MEMORY_GB = 3
-ACCEPTED_HUGEPAGE_SIZES_MB = [2, 1024]
+WARNING_HUGEPAGE_SIZE_MB = 2
+ACCEPTED_HUGEPAGE_SIZE_GB = 1
+ACCEPTED_HUGEPAGE_SIZE_MB = ACCEPTED_HUGEPAGE_SIZE_GB * 1024
 
 MIN_MEMLOCK_GB = 2
 
@@ -717,23 +719,6 @@ def _calc_hugepage_size_and_mem(
     return hugepages_size, hugepages_memory
 
 
-def _1gb_hugepages_supported() -> bool:
-    """
-    Checks whether 1GiB hugepages are supported.
-
-    :raise OSError:
-        If unable to read the required file.
-    """
-    output, _ = run_cmd("lscpu")
-    match = re.search(r"Flags:\s+(.+)", output)
-    if not match:
-        return False
-    cpu_exts = match.group(1).split(" ")
-    if "pdpe1gb" in cpu_exts:
-        return True
-    return False
-
-
 def check_hugepages() -> CheckFuncReturn:
     """Check hugepages are enabled with the required settings."""
     path = "/proc/meminfo"
@@ -760,21 +745,32 @@ def check_hugepages() -> CheckFuncReturn:
                     hugepages_memory,
                 ) = _calc_hugepage_size_and_mem(hugepages_lines)
 
-            if hugepages_size not in ACCEPTED_HUGEPAGE_SIZES_MB:
+            check_state = None
+            if hugepages_size == WARNING_HUGEPAGE_SIZE_MB:
+                msgs.append(
+                    f"{hugepages_size}MiB hugepages are available, but only {ACCEPTED_HUGEPAGE_SIZE_GB}GiB hugepages are\n"
+                    "supported for XRd deployment use cases."
+                )
+                # Just a warning for 2MiB hugepages as they're supported in lab
+                # cases
+                check_state = CheckState.WARNING
+            elif hugepages_size != ACCEPTED_HUGEPAGE_SIZE_MB:
                 msgs.append(
                     f"{hugepages_size}MiB hugepages are available, but XRd requires\n"
-                    f"1GiB (recommended) or 2MiB hugepages."
+                    f"{ACCEPTED_HUGEPAGE_SIZE_GB}GiB hugepages."
                 )
+                # Fail for any other hugepage size
+                check_state = CheckState.FAILED
             if hugepages_memory < HUGEPAGE_MEMORY_GB:
                 msgs.append(
                     f"Only {hugepages_memory:.1f}GiB of hugepage memory available, but XRd\n"
                     f"requires at least {HUGEPAGE_MEMORY_GB}GiB."
                 )
-            if (
-                hugepages_size not in ACCEPTED_HUGEPAGE_SIZES_MB
-                or hugepages_memory < HUGEPAGE_MEMORY_GB
-            ):
-                return CheckState.FAILED, "\n".join(msgs)
+                # Fail if there's not enough hugepage memory
+                check_state = CheckState.FAILED
+
+            if check_state is not None:
+                return check_state, "\n".join(msgs)
     except OSError:
         return (
             CheckState.WARNING,
@@ -791,31 +787,9 @@ def check_hugepages() -> CheckFuncReturn:
             f"or 2MiB hugepage size and at least {HUGEPAGE_MEMORY_GB}GiB of available\n"
             f"hugepage memory.",
         )
-    try:
-        if hugepages_size == 2 and _1gb_hugepages_supported():
-            return (
-                CheckState.WARNING,
-                f"{hugepages_memory:.1f}GiB of hugepages are available.\n"
-                f"The host is configured to use {hugepages_size}MiB hugepages - please\n"
-                f"reconfigure to use 1GiB hugepages for performance reasons.\n"
-                f"See the instructions at:\n"
-                f"https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.",
-            )
-        elif hugepages_size == 2:
-            return (
-                CheckState.NEUTRAL,
-                f"{hugepages_memory:.1f}GiB of hugepages are available.\n"
-                f"The host only supports {hugepages_size}MiB hugepages - note that 1GiB\n"
-                f"hugepages are preferred for performance reasons.",
-            )
-        else:  # convert hugepage size to GiB
-            hugepages_size = hugepages_size // 1024
-            num_hugepgs = int(hugepages_memory // hugepages_size)
-    except subprocess.CalledProcessError as e:
-        return (
-            CheckState.WARNING,
-            f"Command {e.cmd!r} failed - unable to check whether 1GiB hugepages are supported.",
-        )
+
+    hugepages_size = hugepages_size // 1024
+    num_hugepgs = int(hugepages_memory // hugepages_size)
     return (
         CheckState.SUCCESS,
         f"{num_hugepgs} x {hugepages_size}GiB",
