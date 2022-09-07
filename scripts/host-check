@@ -756,8 +756,8 @@ def check_hugepages() -> CheckFuncReturn:
                 check_state = CheckState.WARNING
             elif hugepages_size != ACCEPTED_HUGEPAGE_SIZE_MB:
                 msgs.append(
-                    f"{hugepages_size}MiB hugepages are available, but XRd requires\n"
-                    f"{ACCEPTED_HUGEPAGE_SIZE_GB}GiB hugepages."
+                    f"{hugepages_size}MiB hugepages are available, but XRd "
+                    f"requires {ACCEPTED_HUGEPAGE_SIZE_GB}GiB hugepages."
                 )
                 # Fail for any other hugepage size
                 check_state = CheckState.FAILED

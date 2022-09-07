@@ -19,4 +19,5 @@ First release.
 
 ### v1.0.1 (2022-09-06)
 
-Emit a warning in `host-check` when 2M hugepages are used.
+- Emit a warning in `host-check` when 2M hugepages are used, as this is not a
+supported deployment use case.

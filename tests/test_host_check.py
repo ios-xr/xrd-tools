@@ -1557,14 +1557,40 @@ class TestHugepages(_CheckTestBase):
         assert output == textwrap.dedent(
             """\
             FAIL -- Hugepages
-                    3MiB hugepages are available, but XRd requires
-                    1GiB hugepages.
+                    3MiB hugepages are available, but XRd requires 1GiB hugepages.
             """
         )
         assert not success
 
-    def test_insufficient_memory(self, capsys):
-        """Test the case where the hugepages memory is not sufficient."""
+    def test_insufficient_memory_1_GB(self, capsys):
+        """
+        Test the case where the hugepages memory is not sufficient and 1G
+        hugepages are being used.
+        """
+        hugepages_data = "\n".join(
+            [
+                "HugePages_Total: 512",
+                "Hugepagesize: 1 GB",
+                "HugePages_Free: 2",
+            ]
+        )
+        success, output = self.perform_check(
+            capsys, read_effects=hugepages_data
+        )
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Hugepages
+                    Only 2.0GiB of hugepage memory available, but XRd
+                    requires at least 3GiB.
+            """
+        )
+        assert not success
+
+    def test_insufficient_memory_2_MB(self, capsys):
+        """
+        Test the case where the hugepages memory is not sufficient and 2M
+        hugepages are being used.
+        """
         hugepages_data = "\n".join(
             [
                 "HugePages_Total: 512",
