@@ -17,7 +17,7 @@ First release.
 - Tests: host-check UT
 
 
-### v1.0.1 (2022-09-06)
+### v1.0.1 (2022-09-07)
 
 - Emit a warning in `host-check` when 2M hugepages are used, as this is not a
 supported deployment use case.
