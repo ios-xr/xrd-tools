@@ -1501,7 +1501,6 @@ class TestHugepages(_CheckTestBase):
     check_group = "xrd-vrouter"
     check_name = "Hugepages"
     files = ["/proc/meminfo"]
-    cmds = ["lscpu"]
 
     def test_1_GB_hugepages(self, capsys):
         """Test the success case where 1 GiB hugepages are in use."""
@@ -1522,30 +1521,6 @@ class TestHugepages(_CheckTestBase):
         )
         assert success
 
-    def test_cpu_subproc_error(self, capsys):
-        """Test a subprocess error being raised when trying to parse 'lscpu'."""
-        hugepages_data = "\n".join(
-            [
-                "HugePages_Total: 2000",
-                "Hugepagesize: 2048 kB",
-                "HugePages_Free: 2000",
-            ]
-        )
-        success, output = self.perform_check(
-            capsys,
-            read_effects=hugepages_data,
-            cmd_effects=subprocess.CalledProcessError(
-                returncode=1, cmd="lscpu"
-            ),
-        )
-        assert output == textwrap.dedent(
-            """\
-            WARN -- Hugepages
-                    Command 'lscpu' failed - unable to check whether 1GiB hugepages are supported.
-            """
-        )
-        assert not success
-
     def test_2_MB_supported(self, capsys):
         """Test the case where only 2 MiB hugepages are supported and in use."""
         hugepages_data = "\n".join(
@@ -1555,67 +1530,17 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 2000",
             ]
         )
-        cpu_data = "Flags: fpu vme"
         success, output = self.perform_check(
-            capsys, read_effects=hugepages_data, cmd_effects=cpu_data
+            capsys, read_effects=hugepages_data
         )
         assert output == textwrap.dedent(
             """\
-            INFO -- Hugepages
-                    3.9GiB of hugepages are available.
-                    The host only supports 2MiB hugepages - note that 1GiB
-                    hugepages are preferred for performance reasons.
+            WARN -- Hugepages
+                    2MiB hugepages are available, but only 1GiB hugepages are
+                    supported for XRd deployment use cases.
             """
         )
-        assert success
-
-    def test_2_MB_match_error(self, capsys):
-        """Test the case where 2 MiB hugepages are supported the regex match fails."""
-        hugepages_data = "\n".join(
-            [
-                "HugePages_Total: 2000",
-                "Hugepagesize: 2048 kB",
-                "HugePages_Free: 2000",
-            ]
-        )
-        cpu_data = "match error"
-        success, output = self.perform_check(
-            capsys, read_effects=hugepages_data, cmd_effects=cpu_data
-        )
-        assert output == textwrap.dedent(
-            """\
-            INFO -- Hugepages
-                    3.9GiB of hugepages are available.
-                    The host only supports 2MiB hugepages - note that 1GiB
-                    hugepages are preferred for performance reasons.
-            """
-        )
-        assert success
-
-    def test_2_MB_in_use_1_GB_supported(self, capsys):
-        """Test the case where 2 MiB hugepages are in use, but 1 GiB are supported."""
-        hugepages_data = "\n".join(
-            [
-                "HugePages_Total: 2000",
-                "Hugepagesize: 2048 kB",
-                "HugePages_Free: 2000",
-            ]
-        )
-        cpu_data = "Flags: fpu vme pdpe1gb"
-        success, output = self.perform_check(
-            capsys, read_effects=[hugepages_data, cpu_data]
-        )
-        assert output == textwrap.dedent(
-            """\
-            INFO -- Hugepages
-                    3.9GiB of hugepages are available.
-                    The host is configured to use 2MiB hugepages - please
-                    reconfigure to use 1GiB hugepages for performance reasons.
-                    See the instructions at:
-                    https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.
-            """
-        )
-        assert success
+        assert not success
 
     def test_unaccepted_size(self, capsys):
         """Test the case where the hugepages size is not accepted."""
@@ -1632,14 +1557,40 @@ class TestHugepages(_CheckTestBase):
         assert output == textwrap.dedent(
             """\
             FAIL -- Hugepages
-                    3MiB hugepages are available, but XRd requires
-                    1GiB (recommended) or 2MiB hugepages.
+                    3MiB hugepages are available, but XRd requires 1GiB hugepages.
             """
         )
         assert not success
 
-    def test_insufficient_memory(self, capsys):
-        """Test the case where the hugepages memory is not sufficient."""
+    def test_insufficient_memory_1_GB(self, capsys):
+        """
+        Test the case where the hugepages memory is not sufficient and 1G
+        hugepages are being used.
+        """
+        hugepages_data = "\n".join(
+            [
+                "HugePages_Total: 512",
+                "Hugepagesize: 1 GB",
+                "HugePages_Free: 2",
+            ]
+        )
+        success, output = self.perform_check(
+            capsys, read_effects=hugepages_data
+        )
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Hugepages
+                    Only 2.0GiB of hugepage memory available, but XRd
+                    requires at least 3GiB.
+            """
+        )
+        assert not success
+
+    def test_insufficient_memory_2_MB(self, capsys):
+        """
+        Test the case where the hugepages memory is not sufficient and 2M
+        hugepages are being used.
+        """
         hugepages_data = "\n".join(
             [
                 "HugePages_Total: 512",
@@ -1653,6 +1604,8 @@ class TestHugepages(_CheckTestBase):
         assert output == textwrap.dedent(
             """\
             FAIL -- Hugepages
+                    2MiB hugepages are available, but only 1GiB hugepages are
+                    supported for XRd deployment use cases.
                     Only 1.0GiB of hugepage memory available, but XRd
                     requires at least 3GiB.
             """
