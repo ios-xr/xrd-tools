@@ -1255,6 +1255,35 @@ def perform_checks(checks: List[Check]) -> bool:
     return not any(c.is_error() for c in results.values())
 
 
+def run_extra_checks(extra_checks: List[str]) -> Tuple[set[str], set[str]]:
+    extras_supported = set()
+    extras_not_supported = set()
+
+    print("")  # insert a newline
+    print_heading("Extra checks")
+    for extra_check in sorted(extra_checks):
+        print_subheading(f"{extra_check} checks")
+        extra_success = perform_checks(EXTRA_CHECKS_MAP[extra_check])
+        if extra_success:
+            extras_supported.add(extra_check)
+        else:
+            extras_not_supported.add(extra_check)
+
+    return (extras_supported, extras_not_supported)
+
+
+def print_extra_checks(supported: set[str], not_supported: set[str]) -> None:
+    print_without_newline(f"\n{DASHED_LINE}")
+    if supported:
+        print_without_newline(
+            "\nExtra checks passed: " + ", ".join(sorted(supported))
+        )
+    if not_supported:
+        print_without_newline(
+            "\nExtra checks failed: " + ", ".join(sorted(not_supported))
+        )
+
+
 def run_specified_checks(platform: str, extra_checks: List[str]) -> bool:
     """
     Run specified checks and report which platforms/extras are supported.
@@ -1266,25 +1295,14 @@ def run_specified_checks(platform: str, extra_checks: List[str]) -> bool:
     :return:
         Whether the XR platform checks succeeded.
     """
-    extra_failed = False
+    extras_not_supported: set[str] = set()
     print_heading(f"Platform checks - {platform}")
     platform_success = perform_checks(
         BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]
     )
 
     if extra_checks is not None:  # check if any extra checks were specified
-        extras_supported = set()
-        extras_not_supported = set()
-
-        print("")  # insert a newline
-        print_heading("Extra checks")
-        for extra_check in sorted(extra_checks):
-            print_subheading(f"{extra_check} checks")
-            extra_success = perform_checks(EXTRA_CHECKS_MAP[extra_check])
-            if extra_success:
-                extras_supported.add(extra_check)
-            else:
-                extras_not_supported.add(extra_check)
+        extras_supported, extras_not_supported = run_extra_checks(extra_checks)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
     if platform_success:
@@ -1297,23 +1315,13 @@ def run_specified_checks(platform: str, extra_checks: List[str]) -> bool:
         )
 
     if extra_checks is not None:
-        print_without_newline(f"\n{DASHED_LINE}")
-        if extras_supported:
-            print_without_newline(
-                "\nExtra checks passed: " + ", ".join(sorted(extras_supported))
-            )
-        if extras_not_supported:
-            extra_failed = True
-            print_without_newline(
-                "\nExtra checks failed: "
-                + ", ".join(sorted(extras_not_supported))
-            )
+        print_extra_checks(extras_supported, extras_not_supported)
     print(f"\n{DOUBLE_DASHED_LINE}")
 
-    return platform_success and not extra_failed
+    return platform_success and not extras_not_supported
 
 
-def run_all_checks() -> bool:
+def run_all_checks(extra_checks: List[str]) -> bool:
     """
     Run all checks and report which platforms/extras are supported.
 
@@ -1322,8 +1330,8 @@ def run_all_checks() -> bool:
     """
     platforms_supported = set()
     platforms_not_supported = set()
-    extras_supported = set()
-    extras_not_supported = set()
+    extras_supported: set[str] = set()
+    extras_not_supported: set[str] = set()
 
     print_heading("Platform checks")
     print_subheading("base checks")
@@ -1338,15 +1346,8 @@ def run_all_checks() -> bool:
         else:
             platforms_not_supported.add(platform)
 
-    print("")  # insert a newline
-    print_heading("Extra checks")
-    for extra, checks in EXTRA_CHECKS_MAP.items():
-        print_subheading(f"{extra} checks")
-        extra_success = perform_checks(checks)
-        if extra_success:
-            extras_supported.add(extra)
-        else:
-            extras_not_supported.add(extra)
+    if extra_checks:
+        extras_supported, extras_not_supported = run_extra_checks(extra_checks)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
 
@@ -1364,16 +1365,8 @@ def run_all_checks() -> bool:
             + ", ".join(sorted(platforms_not_supported))
         )
 
-    print_without_newline(f"\n{DASHED_LINE}")
-
-    if extras_supported:
-        print_without_newline(
-            "\nExtra checks passed: " + ", ".join(sorted(extras_supported))
-        )
-    if extras_not_supported:
-        print_without_newline(
-            "\nExtra checks failed: " + ", ".join(sorted(extras_not_supported))
-        )
+    if extra_checks:
+        print_extra_checks(extras_supported, extras_not_supported)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
 
@@ -1397,12 +1390,8 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         required=False,
         help="specify any extra checks to run",
     )
-    # specify some rules for using the arguments
     args = parser.parse_args(argv)
-    if args.extra_checks and not args.platform:
-        parser.error(
-            "The XR platform must be specified with: --platform [-p] XR_PLATFORM"
-        )
+
     return args
 
 
@@ -1412,7 +1401,7 @@ def main(argv: List[str]) -> NoReturn:
         success = run_specified_checks(args.platform, args.extra_checks)
     else:
         # We've already checked that extra checks aren't specified in this case.
-        success = run_all_checks()
+        success = run_all_checks(args.extra_checks)
     sys.exit(0 if success else 1)
 
 
