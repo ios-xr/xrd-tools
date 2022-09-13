@@ -171,7 +171,7 @@ OPTS=$(getopt -o hnkf:e:v:p:c: \
     --long help,dry-run,keep,privileged,name:,plat:,platform:,\
 first-boot-config:,every-boot-config:,first-boot-script:,every-boot-script:,\
 xrd-volume:,ctr-client:,interfaces:,mgmt-interfaces:,disk-limit:,\
-ztp-enable,ztp-config:,args: \
+boot-log-level:,ztp-enable,ztp-config:,args: \
     -n 'parse-options' -- "$@") || bad_usage
 
 eval set -- "$OPTS"
