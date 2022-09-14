@@ -863,9 +863,15 @@ def check_interface_kernel_driver() -> CheckFuncReturn:
 
 def check_iommu() -> CheckFuncReturn:
     """Check IOMMU is set up correctly for the vfio-pci kernel module."""
+    if not PCIDriver("vfio-pci").is_supported:
+        return (
+            CheckState.NEUTRAL,
+            "IOMMU is not required as the vfio-pci module is not loaded.",
+        )
     recommendation = "IOMMU is recommended for security when using the vfio-pci kernel driver."
     noiommu_filepath = "/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"
     iommu_dev_filepath = "/sys/class/iommu/*/devices/*"
+
     try:
         with open(noiommu_filepath, "r", encoding="utf-8") as f:
             no_iommu_mode = f.read().strip().upper() in ("Y", "1")
@@ -875,11 +881,9 @@ def check_iommu() -> CheckFuncReturn:
                     "vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.",
                 )
     except OSError:
-        return (
-            CheckState.WARNING,
-            "Failed to check whether vfio-pci 'no-IOMMU' mode is enabled by reading\n"
-            f"{noiommu_filepath}.\n" + recommendation,
-        )
+        # If the no-IOMMU file does not exist, then no-IOMMU mode can't be enabled.
+        pass
+
     # Check if IOMMU is enabled on the host
     try:
         iommu_devices = [
