@@ -30,6 +30,7 @@ import shlex
 import subprocess
 import sys
 import textwrap
+from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
@@ -796,24 +797,68 @@ def check_hugepages() -> CheckFuncReturn:
     )
 
 
+@dataclass(frozen=True)
+class PCIDriver:
+    """
+    Class to represent a PCI driver.
+    """
+
+    name: str
+
+    @property
+    def is_supported(self) -> bool:
+        # The lsmod, loaded check, requires the underscore version of the kernel
+        # module name
+        return _is_module_loaded(
+            self.name.replace("-", "_")
+        ) or _is_module_builtin(self.name)
+
+    @property
+    def is_installed(self) -> bool:
+        return _is_module_installed(self.name)
+
+
 def check_interface_kernel_driver() -> CheckFuncReturn:
     """Check the required interface specific kernel driver is loaded."""
-    # The lsmod, loaded check, requires the underscore version of the kernel
-    # module name
-    if _is_module_loaded("vfio_pci") or _is_module_builtin("vfio-pci"):
-        return CheckState.SUCCESS, "vfio-pci loaded"
-    elif _is_module_installed("vfio-pci"):
-        return (
-            CheckState.FAILED,
-            "The kernel module vfio-pci is installed but not loaded.\n"
-            "Run 'modprobe vfio-pci' to load the module.",
-        )
+
+    pci_drivers = [PCIDriver("vfio-pci"), PCIDriver("igb_uio")]
+    supported_drivers = [
+        driver for driver in pci_drivers if driver.is_supported
+    ]
+    installed_not_supported = [
+        driver
+        for driver in pci_drivers
+        if driver not in supported_drivers and driver.is_installed
+    ]
+    supported_str = ", ".join(driver.name for driver in supported_drivers)
+    installed_not_supported_str = ", ".join(
+        driver.name for driver in installed_not_supported
+    )
+    if supported_drivers:
+        if installed_not_supported:
+            return (
+                CheckState.NEUTRAL,
+                f"The following PCI drivers are installed but not loaded: {installed_not_supported_str}.\n"
+                f"Loaded PCI drivers: {supported_str}.\n"
+                "Run 'modprobe <pci driver>' to load a driver.",
+            )
+        else:
+            return (CheckState.SUCCESS, f"Loaded PCI drivers: {supported_str}")
     else:
-        return (
-            CheckState.FAILED,
-            "The kernel module vfio-pci is not installed. It may be\n"
-            "possible to install using your distro's package manager.",
-        )
+        if installed_not_supported:
+            return (
+                CheckState.FAILED,
+                "None of the expected PCI drivers are loaded.\n"
+                f"The following PCI drivers are installed but not loaded: {installed_not_supported_str}.\n"
+                "Run 'modprobe <pci driver>' to load a driver.",
+            )
+        else:
+            return (
+                CheckState.FAILED,
+                "No PCI drivers are loaded or installed.\n"
+                "Must have either the vfio-pci or igb_uio kernel module loaded.\n"
+                "It may be possible to install using your distro's package manager.",
+            )
 
 
 def check_iommu() -> CheckFuncReturn:

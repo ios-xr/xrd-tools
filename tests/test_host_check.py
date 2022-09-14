@@ -1754,41 +1754,49 @@ class TestGDPKernelDriver(_CheckTestBase):
     cmds = [
         "lsmod | grep -q '^vfio_pci '",  # loaded
         "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",  # builtin
+        "lsmod | grep -q '^igb_uio '",  # loaded
+        "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",  # builtin
         "grep -q /vfio-pci.ko /lib/modules/*/modules.*",  # installed
+        "grep -q /igb_uio.ko /lib/modules/*/modules.*",  # installed
     ]
 
-    def test_vfio_loaded(self, capsys):
-        """Test the case where vfio-pci is loaded."""
+    def test_both_loaded(self, capsys):
+        """Test the case where both PCI drivers are loaded."""
         # Command (grep -q) simply returns 0.
         success, output = self.perform_check(
-            capsys, cmd_effects=["", None, None]
+            capsys, cmd_effects=["", None, "", None, None, None]
         )
         assert output == textwrap.dedent(
             f"""\
-            PASS -- Interface kernel driver (vfio-pci loaded)
+            PASS -- Interface kernel driver
+                    Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
         assert success
 
-    def test_vfio_builtin(self, capsys):
-        """Test the case where vfio-pci is builtin."""
+    def test_both_builtin(self, capsys):
+        """Test the case where both PCI drivers are builtin."""
         # Command (grep -q) simply returns 0.
         success, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
                 "",
+                subprocess.CalledProcessError(1, ""),
+                "",
+                None,
                 None,
             ],
         )
         assert output == textwrap.dedent(
             f"""\
-            PASS -- Interface kernel driver (vfio-pci loaded)
+            PASS -- Interface kernel driver
+                    Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
         assert success
 
-    def test_vfio_installed(self, capsys):
+    def test_both_installed(self, capsys):
         """Test the case where vfio-pci is installed but not loaded."""
         # Command (grep -q) simply returns 0.
         success, output = self.perform_check(
@@ -1796,33 +1804,110 @@ class TestGDPKernelDriver(_CheckTestBase):
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
                 subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                "",
                 "",
             ],
         )
         assert output == textwrap.dedent(
             f"""\
             FAIL -- Interface kernel driver
-                    The kernel module vfio-pci is installed but not loaded.
-                    Run 'modprobe vfio-pci' to load the module.
+                    None of the expected PCI drivers are loaded.
+                    The following PCI drivers are installed but not loaded: vfio-pci, igb_uio.
+                    Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert not success
 
-    def test_vfio_missing(self, capsys):
+    def test_both_missing(self, capsys):
         """Test the case where vfio-pci is not loaded."""
         success, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
                 subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError,
                 subprocess.SubprocessError,
             ],
         )
         assert output == textwrap.dedent(
             f"""\
             FAIL -- Interface kernel driver
-                    The kernel module vfio-pci is not installed. It may be
-                    possible to install using your distro's package manager.
+                    No PCI drivers are loaded or installed.
+                    Must have either the vfio-pci or igb_uio kernel module loaded.
+                    It may be possible to install using your distro's package manager.
+            """
+        )
+        assert not success
+
+    def test_loaded_and_installed(self, capsys):
+        """Test where vfio-pci is loaded and igb_uio is installed."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                "",
+                None,
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                None,
+                "",
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- Interface kernel driver
+                    The following PCI drivers are installed but not loaded: igb_uio.
+                    Loaded PCI drivers: vfio-pci.
+                    Run 'modprobe <pci driver>' to load a driver.
+            """
+        )
+        assert success
+
+    def test_installed_and_builtin(self, capsys):
+        """Test where vfio-pci is installed and igb_uio is builtin."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                "",
+                "",
+                None,
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- Interface kernel driver
+                    The following PCI drivers are installed but not loaded: vfio-pci.
+                    Loaded PCI drivers: igb_uio.
+                    Run 'modprobe <pci driver>' to load a driver.
+            """
+        )
+        assert success
+
+    def test_missing_and_installed(self, capsys):
+        """Test where vfio-pci is missing and igb_uio is installed."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                "",
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            FAIL -- Interface kernel driver
+                    None of the expected PCI drivers are loaded.
+                    The following PCI drivers are installed but not loaded: igb_uio.
+                    Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert not success
