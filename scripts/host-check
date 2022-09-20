@@ -40,6 +40,7 @@ from typing import (
     NamedTuple,
     NoReturn,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -1304,7 +1305,7 @@ def perform_checks(checks: List[Check]) -> bool:
     return not any(c.is_error() for c in results.values())
 
 
-def run_extra_checks(extra_checks: List[str]) -> Tuple[set[str], set[str]]:
+def run_extra_checks(extra_checks: List[str]) -> Tuple[Set[str], Set[str]]:
     extras_supported = set()
     extras_not_supported = set()
 
@@ -1321,7 +1322,7 @@ def run_extra_checks(extra_checks: List[str]) -> Tuple[set[str], set[str]]:
     return (extras_supported, extras_not_supported)
 
 
-def print_extra_checks(supported: set[str], not_supported: set[str]) -> None:
+def print_extra_checks(supported: Set[str], not_supported: Set[str]) -> None:
     print_without_newline(f"\n{DASHED_LINE}")
     if supported:
         print_without_newline(
@@ -1344,7 +1345,7 @@ def run_specified_checks(platform: str, extra_checks: List[str]) -> bool:
     :return:
         Whether the XR platform checks succeeded.
     """
-    extras_not_supported: set[str] = set()
+    extras_not_supported: Set[str] = set()
     print_heading(f"Platform checks - {platform}")
     platform_success = perform_checks(
         BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]
@@ -1379,8 +1380,8 @@ def run_all_checks(extra_checks: List[str]) -> bool:
     """
     platforms_supported = set()
     platforms_not_supported = set()
-    extras_supported: set[str] = set()
-    extras_not_supported: set[str] = set()
+    extras_supported: Set[str] = set()
+    extras_not_supported: Set[str] = set()
 
     print_heading("Platform checks")
     print_subheading("base checks")
