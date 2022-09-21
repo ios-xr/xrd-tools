@@ -30,6 +30,7 @@ import shlex
 import subprocess
 import sys
 import textwrap
+from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
@@ -39,6 +40,7 @@ from typing import (
     NamedTuple,
     NoReturn,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -790,51 +792,98 @@ def check_hugepages() -> CheckFuncReturn:
 
     hugepages_size = hugepages_size // 1024
     num_hugepgs = int(hugepages_memory // hugepages_size)
-    return (
-        CheckState.SUCCESS,
-        f"{num_hugepgs} x {hugepages_size}GiB",
-    )
+    return CheckState.SUCCESS, f"{num_hugepgs} x {hugepages_size}GiB"
+
+
+@dataclass(frozen=True)
+class PCIDriver:
+    """
+    Class to represent a PCI driver.
+    """
+
+    name: str
+
+    def is_supported(self) -> bool:
+        # The lsmod, loaded check, requires the underscore version of the kernel
+        # module name
+        return _is_module_loaded(
+            self.name.replace("-", "_")
+        ) or _is_module_builtin(self.name)
+
+    def is_installed(self) -> bool:
+        return _is_module_installed(self.name)
 
 
 def check_interface_kernel_driver() -> CheckFuncReturn:
     """Check the required interface specific kernel driver is loaded."""
-    # The lsmod, loaded check, requires the underscore version of the kernel
-    # module name
-    if _is_module_loaded("vfio_pci") or _is_module_builtin("vfio-pci"):
-        return CheckState.SUCCESS, "vfio-pci loaded"
-    elif _is_module_installed("vfio-pci"):
-        return (
-            CheckState.FAILED,
-            "The kernel module vfio-pci is installed but not loaded.\n"
-            "Run 'modprobe vfio-pci' to load the module.",
-        )
+
+    pci_drivers = [PCIDriver("vfio-pci"), PCIDriver("igb_uio")]
+    supported_drivers = [
+        driver for driver in pci_drivers if driver.is_supported()
+    ]
+    installed_not_supported = [
+        driver
+        for driver in pci_drivers
+        if driver not in supported_drivers and driver.is_installed()
+    ]
+    supported_str = ", ".join(driver.name for driver in supported_drivers)
+    installed_not_supported_str = ", ".join(
+        driver.name for driver in installed_not_supported
+    )
+    if supported_drivers:
+        if installed_not_supported:
+            return (
+                CheckState.NEUTRAL,
+                f"The following PCI drivers are installed but not loaded: {installed_not_supported_str}.\n"
+                f"Loaded PCI drivers: {supported_str}.\n"
+                "Run 'modprobe <pci driver>' to load a driver.",
+            )
+        else:
+            return CheckState.SUCCESS, f"Loaded PCI drivers: {supported_str}"
     else:
-        return (
-            CheckState.FAILED,
-            "The kernel module vfio-pci is not installed. It may be\n"
-            "possible to install using your distro's package manager.",
-        )
+        if installed_not_supported:
+            return (
+                CheckState.FAILED,
+                "None of the expected PCI drivers are loaded.\n"
+                f"The following PCI drivers are installed but not loaded: {installed_not_supported_str}.\n"
+                "Run 'modprobe <pci driver>' to load a driver.",
+            )
+        else:
+            return (
+                CheckState.FAILED,
+                "No PCI drivers are loaded or installed.\n"
+                "Must have either the vfio-pci or igb_uio kernel module loaded.\n"
+                "It may be possible to install using your distro's package manager.",
+            )
 
 
 def check_iommu() -> CheckFuncReturn:
     """Check IOMMU is set up correctly for the vfio-pci kernel module."""
+    if not PCIDriver("vfio-pci").is_supported():
+        return CheckState.NEUTRAL, "vfio-pci driver unavailable"
+
+    # If igb_uio is supported, treat warnings as info, because even though
+    # IOMMU isn't enabled, igb_uio can be used.
+    warning_state = CheckState.WARNING
+    if PCIDriver("igb_uio").is_supported():
+        warning_state = CheckState.NEUTRAL
+
     recommendation = "IOMMU is recommended for security when using the vfio-pci kernel driver."
     noiommu_filepath = "/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"
     iommu_dev_filepath = "/sys/class/iommu/*/devices/*"
+
     try:
         with open(noiommu_filepath, "r", encoding="utf-8") as f:
             no_iommu_mode = f.read().strip().upper() in ("Y", "1")
             if no_iommu_mode:
                 return (
-                    CheckState.WARNING,
+                    warning_state,
                     "vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.",
                 )
     except OSError:
-        return (
-            CheckState.WARNING,
-            "Failed to check whether vfio-pci 'no-IOMMU' mode is enabled by reading\n"
-            f"{noiommu_filepath}.\n" + recommendation,
-        )
+        # If the no-IOMMU file does not exist, then no-IOMMU mode can't be enabled.
+        pass
+
     # Check if IOMMU is enabled on the host
     try:
         iommu_devices = [
@@ -842,13 +891,13 @@ def check_iommu() -> CheckFuncReturn:
         ]
         if not iommu_devices:  # check if the directory is empty
             return (
-                CheckState.FAILED,
+                warning_state,
                 "The kernel module vfio-pci cannot be used, as IOMMU is not enabled.\n"
                 + recommendation,
             )
     except Exception:
         return (
-            CheckState.WARNING,
+            warning_state,
             f"Unable to check if IOMMU is enabled by listing {iommu_dev_filepath}.\n"
             + recommendation,
         )
@@ -860,7 +909,9 @@ def check_iommu() -> CheckFuncReturn:
             r"pci@([\da-f]{4}:[\da-f]{2}:[\da-f]{2}\.[\da-f])\s+(\S+)", output
         )
         if not matches:
-            return (CheckState.FAILED, "no PCI network devices found")
+            # This should always be a warning - we need PCI devices whether
+            # we're using igb_uio or vfio-pci.
+            return CheckState.WARNING, "no PCI network devices found"
         network_devices = set()
         net_devices_dict = {}
         for match in matches:
@@ -870,14 +921,14 @@ def check_iommu() -> CheckFuncReturn:
 
     except subprocess.SubprocessError:
         return (
-            CheckState.WARNING,
+            warning_state,
             f"The cmd {cmd!r} failed - unable to\n"
             "determine the network devices on the host. IOMMU is enabled.",
         )
     net_iommu_devices = network_devices & set(iommu_devices)
     if not net_iommu_devices:
         return (
-            CheckState.WARNING,
+            warning_state,
             "IOMMU enabled for vfio-pci, but no network PCI devices found.",
         )
     net_iommu_devs_list = []
@@ -1255,36 +1306,80 @@ def perform_checks(checks: List[Check]) -> bool:
     return not any(c.is_error() for c in results.values())
 
 
-def run_specified_checks(platform: str, extra_checks: List[str]) -> bool:
+def run_extra_checks(extra_checks: List[str]) -> Tuple[Set[str], Set[str]]:
     """
-    Run specified checks and report which platforms/extras are supported.
+    Run the specified extra checks, printing the results and returning the
+    checks that succeeded and failed.
+
+    :param extra_checks:
+        List of extra checks to perform.
+
+    :returns:
+        Tuple of the checks that succeeded, and the checks that failed.
+
+    """
+    extras_supported = set()
+    extras_not_supported = set()
+
+    print("")  # insert a newline
+    print_heading("Extra checks")
+    for extra_check in sorted(extra_checks):
+        print_subheading(f"{extra_check} checks")
+        extra_success = perform_checks(EXTRA_CHECKS_MAP[extra_check])
+        if extra_success:
+            extras_supported.add(extra_check)
+        else:
+            extras_not_supported.add(extra_check)
+
+    return extras_supported, extras_not_supported
+
+
+def print_extra_checks_summary(
+    supported: Set[str], not_supported: Set[str]
+) -> None:
+    """
+    Print a summary of the extra checks that passed and failed.
+
+    :param supported:
+        The checks that were successful.
+
+    :param not_supported:
+        The checks that were not successful.
+
+    """
+    print_without_newline(f"\n{DASHED_LINE}")
+    if supported:
+        print_without_newline(
+            "\nExtra checks passed: " + ", ".join(sorted(supported))
+        )
+    if not_supported:
+        print_without_newline(
+            "\nExtra checks failed: " + ", ".join(sorted(not_supported))
+        )
+
+
+def run_checks_specific_platform(
+    platform: str, extra_checks: List[str]
+) -> bool:
+    """
+    Run checks for the given platform (including the base checks that are
+    required for all platforms).
 
     :param platform:
         The XR platform.
     :param extra_checks:
         A list of the extra checks.
     :return:
-        Whether the XR platform checks succeeded.
+        Whether all checks that were performed succeeded.
     """
-    extra_failed = False
+    extras_not_supported: Set[str] = set()
     print_heading(f"Platform checks - {platform}")
     platform_success = perform_checks(
         BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]
     )
 
     if extra_checks is not None:  # check if any extra checks were specified
-        extras_supported = set()
-        extras_not_supported = set()
-
-        print("")  # insert a newline
-        print_heading("Extra checks")
-        for extra_check in sorted(extra_checks):
-            print_subheading(f"{extra_check} checks")
-            extra_success = perform_checks(EXTRA_CHECKS_MAP[extra_check])
-            if extra_success:
-                extras_supported.add(extra_check)
-            else:
-                extras_not_supported.add(extra_check)
+        extras_supported, extras_not_supported = run_extra_checks(extra_checks)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
     if platform_success:
@@ -1297,33 +1392,23 @@ def run_specified_checks(platform: str, extra_checks: List[str]) -> bool:
         )
 
     if extra_checks is not None:
-        print_without_newline(f"\n{DASHED_LINE}")
-        if extras_supported:
-            print_without_newline(
-                "\nExtra checks passed: " + ", ".join(sorted(extras_supported))
-            )
-        if extras_not_supported:
-            extra_failed = True
-            print_without_newline(
-                "\nExtra checks failed: "
-                + ", ".join(sorted(extras_not_supported))
-            )
+        print_extra_checks_summary(extras_supported, extras_not_supported)
     print(f"\n{DOUBLE_DASHED_LINE}")
 
-    return platform_success and not extra_failed
+    return platform_success and not extras_not_supported
 
 
-def run_all_checks() -> bool:
+def run_checks_all_platforms(extra_checks: List[str]) -> bool:
     """
-    Run all checks and report which platforms/extras are supported.
+    Run checks for all platforms and report which platforms are supported.
 
     :return:
         Whether at least one XR platform is supported.
     """
     platforms_supported = set()
     platforms_not_supported = set()
-    extras_supported = set()
-    extras_not_supported = set()
+    extras_supported: Set[str] = set()
+    extras_not_supported: Set[str] = set()
 
     print_heading("Platform checks")
     print_subheading("base checks")
@@ -1338,15 +1423,8 @@ def run_all_checks() -> bool:
         else:
             platforms_not_supported.add(platform)
 
-    print("")  # insert a newline
-    print_heading("Extra checks")
-    for extra, checks in EXTRA_CHECKS_MAP.items():
-        print_subheading(f"{extra} checks")
-        extra_success = perform_checks(checks)
-        if extra_success:
-            extras_supported.add(extra)
-        else:
-            extras_not_supported.add(extra)
+    if extra_checks:
+        extras_supported, extras_not_supported = run_extra_checks(extra_checks)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
 
@@ -1364,16 +1442,8 @@ def run_all_checks() -> bool:
             + ", ".join(sorted(platforms_not_supported))
         )
 
-    print_without_newline(f"\n{DASHED_LINE}")
-
-    if extras_supported:
-        print_without_newline(
-            "\nExtra checks passed: " + ", ".join(sorted(extras_supported))
-        )
-    if extras_not_supported:
-        print_without_newline(
-            "\nExtra checks failed: " + ", ".join(sorted(extras_not_supported))
-        )
+    if extra_checks:
+        print_extra_checks_summary(extras_supported, extras_not_supported)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
 
@@ -1397,22 +1467,19 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         required=False,
         help="specify any extra checks to run",
     )
-    # specify some rules for using the arguments
     args = parser.parse_args(argv)
-    if args.extra_checks and not args.platform:
-        parser.error(
-            "The XR platform must be specified with: --platform [-p] XR_PLATFORM"
-        )
+
     return args
 
 
 def main(argv: List[str]) -> NoReturn:
     args = parse_args(argv)
     if args.platform:
-        success = run_specified_checks(args.platform, args.extra_checks)
+        success = run_checks_specific_platform(
+            args.platform, args.extra_checks
+        )
     else:
-        # We've already checked that extra checks aren't specified in this case.
-        success = run_all_checks()
+        success = run_checks_all_platforms(args.extra_checks)
     sys.exit(0 if success else 1)
 
 

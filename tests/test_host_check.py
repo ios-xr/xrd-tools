@@ -224,22 +224,8 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
 
-==============================
-Extra checks
-==============================
-
-docker checks
------------------------
-Checks: Docker client, Docker daemon, Docker supports d_type
-
-xr-compose checks
------------------------
-Checks: docker-compose, PyYAML, Bridge iptables
-
 ==================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
-------------------------------------------------------------------
-Extra checks passed: docker, xr-compose
 ==================================================================
 """
         assert output == cli_output
@@ -279,7 +265,7 @@ Host environment set up correctly for xrd-vrouter
         assert output == cli_output
         assert exit_code == 0
 
-    def test_extra_check_docker(self, capsys):
+    def test_extra_check_docker_plat(self, capsys):
         """Test running host-check with the docker extra check."""
         exit_code, output = self.run_host_check(
             capsys, ["-p", "xrd-control-plane", "-e", "docker"]
@@ -307,7 +293,7 @@ Extra checks passed: docker
         assert output == cli_output
         assert exit_code == 0
 
-    def test_extra_check_xr_compose(self, capsys):
+    def test_extra_check_xr_compose_plat(self, capsys):
         """Test running host-check with the xr-compose extra check."""
         exit_code, output = self.run_host_check(
             capsys, ["-p", "xrd-control-plane", "-e", "xr-compose"]
@@ -335,7 +321,7 @@ Extra checks passed: xr-compose
         assert output == cli_output
         assert exit_code == 0
 
-    def test_all_extra_checks(self, capsys):
+    def test_all_extra_checks_plat(self, capsys):
         """Test running host-check with all extra checks."""
         exit_code, output = self.run_host_check(
             capsys, ["-p", "xrd-control-plane", "-e", "xr-compose", "docker"]
@@ -360,6 +346,123 @@ Checks: docker-compose, PyYAML, Bridge iptables
 
 ==================================================================
 Host environment set up correctly for xrd-control-plane
+------------------------------------------------------------------
+Extra checks passed: docker, xr-compose
+==================================================================
+"""
+        assert output == cli_output
+        assert exit_code == 0
+
+    def test_extra_check_docker(self, capsys):
+        """Test running host-check with the docker extra check."""
+        exit_code, output = self.run_host_check(capsys, ["-e", "docker"])
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: RAM
+
+xrd-vrouter checks
+-----------------------
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+
+==============================
+Extra checks
+==============================
+
+docker checks
+-----------------------
+Checks: Docker client, Docker daemon, Docker supports d_type
+
+==================================================================
+XR platforms supported: xrd-control-plane, xrd-vrouter
+------------------------------------------------------------------
+Extra checks passed: docker
+==================================================================
+"""
+        assert output == cli_output
+        assert exit_code == 0
+
+    def test_extra_check_xr_compose(self, capsys):
+        """Test running host-check with the xr-compose extra check."""
+        exit_code, output = self.run_host_check(capsys, ["-e", "xr-compose"])
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: RAM
+
+xrd-vrouter checks
+-----------------------
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+
+==============================
+Extra checks
+==============================
+
+xr-compose checks
+-----------------------
+Checks: docker-compose, PyYAML, Bridge iptables
+
+==================================================================
+XR platforms supported: xrd-control-plane, xrd-vrouter
+------------------------------------------------------------------
+Extra checks passed: xr-compose
+==================================================================
+"""
+        assert output == cli_output
+        assert exit_code == 0
+
+    def test_all_extra_checks(self, capsys):
+        """Test running host-check with all extra checks."""
+        exit_code, output = self.run_host_check(
+            capsys, ["-e", "xr-compose", "docker"]
+        )
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: RAM
+
+xrd-vrouter checks
+-----------------------
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+
+==============================
+Extra checks
+==============================
+
+docker checks
+-----------------------
+Checks: Docker client, Docker daemon, Docker supports d_type
+
+xr-compose checks
+-----------------------
+Checks: docker-compose, PyYAML, Bridge iptables
+
+==================================================================
+XR platforms supported: xrd-control-plane, xrd-vrouter
 ------------------------------------------------------------------
 Extra checks passed: docker, xr-compose
 ==================================================================
@@ -409,22 +512,8 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
 
-==============================
-Extra checks
-==============================
-
-docker checks
------------------------
-Checks: Docker client, Docker daemon, Docker supports d_type
-
-xr-compose checks
------------------------
-Checks: docker-compose, PyYAML, Bridge iptables
-
 ==================================================================
 !! Host NOT set up correctly for any XR platforms !!
-------------------------------------------------------------------
-Extra checks passed: docker, xr-compose
 ==================================================================
 """
         assert output == cli_output
@@ -452,23 +541,9 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
 
-==============================
-Extra checks
-==============================
-
-docker checks
------------------------
-Checks: Docker client, Docker daemon, Docker supports d_type
-
-xr-compose checks
------------------------
-Checks: docker-compose, PyYAML, Bridge iptables
-
 ==================================================================
 XR platforms supported: xrd-control-plane
 XR platforms NOT supported: xrd-vrouter
-------------------------------------------------------------------
-Extra checks passed: docker, xr-compose
 ==================================================================
 """
         assert output == cli_output
@@ -477,7 +552,7 @@ Extra checks passed: docker, xr-compose
     def test_extra_check_not_supported(self, capsys):
         """Test an extra check not being supported when host-check is run without arguments."""
         exit_code, output = self.run_host_check(
-            capsys, [], failing_checks=["PyYAML"]
+            capsys, ["-e", "docker", "xr-compose"], failing_checks=["PyYAML"]
         )
         cli_output = f"""\
 ==============================
@@ -552,12 +627,6 @@ Extra checks failed: xr-compose
 """
         assert output == cli_output
         assert exit_code == 1
-
-    def test_missing_plat_arg(self, capsys):
-        """Test running host-check with the platform argument missing."""
-        exit_code, output = self.run_host_check(capsys, ["-e", "docker"])
-        assert output == ""
-        assert exit_code == 2
 
     def test_unrecognized_arg(self, capsys):
         """Test running host-check with an unrecognized argument."""
@@ -1685,41 +1754,49 @@ class TestGDPKernelDriver(_CheckTestBase):
     cmds = [
         "lsmod | grep -q '^vfio_pci '",  # loaded
         "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",  # builtin
+        "lsmod | grep -q '^igb_uio '",  # loaded
+        "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",  # builtin
         "grep -q /vfio-pci.ko /lib/modules/*/modules.*",  # installed
+        "grep -q /igb_uio.ko /lib/modules/*/modules.*",  # installed
     ]
 
-    def test_vfio_loaded(self, capsys):
-        """Test the case where vfio-pci is loaded."""
+    def test_both_loaded(self, capsys):
+        """Test the case where both PCI drivers are loaded."""
         # Command (grep -q) simply returns 0.
         success, output = self.perform_check(
-            capsys, cmd_effects=["", None, None]
+            capsys, cmd_effects=["", None, "", None, None, None]
         )
         assert output == textwrap.dedent(
             f"""\
-            PASS -- Interface kernel driver (vfio-pci loaded)
+            PASS -- Interface kernel driver
+                    Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
         assert success
 
-    def test_vfio_builtin(self, capsys):
-        """Test the case where vfio-pci is builtin."""
+    def test_both_builtin(self, capsys):
+        """Test the case where both PCI drivers are builtin."""
         # Command (grep -q) simply returns 0.
         success, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
                 "",
+                subprocess.CalledProcessError(1, ""),
+                "",
+                None,
                 None,
             ],
         )
         assert output == textwrap.dedent(
             f"""\
-            PASS -- Interface kernel driver (vfio-pci loaded)
+            PASS -- Interface kernel driver
+                    Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
         assert success
 
-    def test_vfio_installed(self, capsys):
+    def test_both_installed(self, capsys):
         """Test the case where vfio-pci is installed but not loaded."""
         # Command (grep -q) simply returns 0.
         success, output = self.perform_check(
@@ -1727,33 +1804,110 @@ class TestGDPKernelDriver(_CheckTestBase):
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
                 subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                "",
                 "",
             ],
         )
         assert output == textwrap.dedent(
             f"""\
             FAIL -- Interface kernel driver
-                    The kernel module vfio-pci is installed but not loaded.
-                    Run 'modprobe vfio-pci' to load the module.
+                    None of the expected PCI drivers are loaded.
+                    The following PCI drivers are installed but not loaded: vfio-pci, igb_uio.
+                    Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert not success
 
-    def test_vfio_missing(self, capsys):
+    def test_both_missing(self, capsys):
         """Test the case where vfio-pci is not loaded."""
         success, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
                 subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError,
                 subprocess.SubprocessError,
             ],
         )
         assert output == textwrap.dedent(
             f"""\
             FAIL -- Interface kernel driver
-                    The kernel module vfio-pci is not installed. It may be
-                    possible to install using your distro's package manager.
+                    No PCI drivers are loaded or installed.
+                    Must have either the vfio-pci or igb_uio kernel module loaded.
+                    It may be possible to install using your distro's package manager.
+            """
+        )
+        assert not success
+
+    def test_loaded_and_installed(self, capsys):
+        """Test where vfio-pci is loaded and igb_uio is installed but not loaded."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                "",
+                None,
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                None,
+                "",
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- Interface kernel driver
+                    The following PCI drivers are installed but not loaded: igb_uio.
+                    Loaded PCI drivers: vfio-pci.
+                    Run 'modprobe <pci driver>' to load a driver.
+            """
+        )
+        assert success
+
+    def test_installed_and_builtin(self, capsys):
+        """Test where vfio-pci is installed but not loaded and igb_uio is builtin."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                "",
+                "",
+                None,
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- Interface kernel driver
+                    The following PCI drivers are installed but not loaded: vfio-pci.
+                    Loaded PCI drivers: igb_uio.
+                    Run 'modprobe <pci driver>' to load a driver.
+            """
+        )
+        assert success
+
+    def test_missing_and_installed(self, capsys):
+        """Test where vfio-pci is missing and igb_uio is installed."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError(1, ""),
+                "",
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            FAIL -- Interface kernel driver
+                    None of the expected PCI drivers are loaded.
+                    The following PCI drivers are installed but not loaded: igb_uio.
+                    Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert not success
@@ -1778,7 +1932,13 @@ class TestIOMMU(_CheckTestBase):
     check_group = "xrd-vrouter"
     check_name = "IOMMU"
     deps = ["Interface kernel driver"]
-    cmds = ["lshw -businfo -c network"]
+    cmds = [
+        "lsmod | grep -q '^vfio_pci '",
+        "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",
+        "lsmod | grep -q '^igb_uio '",
+        "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",
+        "lshw -businfo -c network",
+    ]
     files = ["/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"]
 
     def test_success(self, capsys):
@@ -1804,7 +1964,15 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
-                capsys, cmd_effects=[lshw_output], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -1827,7 +1995,15 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         iommu_devices = ["0000:00:00.0", "0000:00:01.0"]
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
-                capsys, cmd_effects=[lshw_output], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -1850,7 +2026,13 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
                 capsys,
-                cmd_effects=[subprocess.SubprocessError],
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                ],
                 read_effects="N",
             )
         assert output == textwrap.dedent(
@@ -1878,11 +2060,19 @@ Bus info          Device      Class      Description
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
-                capsys, cmd_effects=[lshw_output], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
-            FAIL -- IOMMU (no PCI network devices found)
+            WARN -- IOMMU (no PCI network devices found)
             """
         )
         assert not success
@@ -1890,7 +2080,16 @@ Bus info          Device      Class      Description
     def test_iommu_directory_check_error(self, capsys):
         """Test the case where the IOMMU check throws an error."""
         with mock.patch("glob.glob", side_effect=Exception):
-            success, output = self.perform_check(capsys, read_effects="N")
+            success, output = self.perform_check(
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                ],
+                read_effects="N",
+            )
         assert output == textwrap.dedent(
             f"""\
             WARN -- IOMMU
@@ -1903,10 +2102,19 @@ Bus info          Device      Class      Description
     def test_iommu_not_enabled(self, capsys):
         """Test the case where IOMMU is not enabled."""
         with mock.patch("glob.glob", return_value=[]):
-            success, output = self.perform_check(capsys, read_effects="N")
+            success, output = self.perform_check(
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                ],
+                read_effects="N",
+            )
         assert output == textwrap.dedent(
             f"""\
-            FAIL -- IOMMU
+            WARN -- IOMMU
                     The kernel module vfio-pci cannot be used, as IOMMU is not enabled.
                     IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
@@ -1915,7 +2123,16 @@ Bus info          Device      Class      Description
 
     def test_no_iommu_mode(self, capsys):
         """Test the case where vfio-pci is set up in no-IOMMU mode."""
-        success, output = self.perform_check(capsys, read_effects="Y")
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                "",
+                None,
+                subprocess.SubprocessError,
+                subprocess.SubprocessError,
+            ],
+            read_effects="Y",
+        )
         assert output == textwrap.dedent(
             f"""\
             WARN -- IOMMU
@@ -1924,23 +2141,63 @@ Bus info          Device      Class      Description
         )
         assert not success
 
-    def test_no_iommu_oserror(self, capsys):
-        """Test the case where the check for vfio-pci 'no-IOMMU' mode throws an OS error."""
-        success, output = self.perform_check(capsys, read_effects=OSError)
+    def test_no_iommu_unconfigurable(self, capsys):
+        """
+        Test the case where the check for vfio-pci 'no-IOMMU' mode throws an
+        OS error because IOMMU is unconfigurable - should result in success.
+        """
+        lshw_output = """\
+Bus info          Device      Class      Description
+====================================================
+pci@0000:00:00.0  device1     network    82540EM Gigabit Ethernet Controller
+pci@0000:00:1f.2  device4     network    Ethernet interface
+pci@0000:00:02.0  device3     network    82540EM Gigabit Ethernet Controller
+pci@0000:00:01.0  device2     network    Ethernet interface
+                  docker0     network    Ethernet interface
+
+
+        """
+        iommu_devices = [
+            "0000:00:00.0",
+            "0000:00:01.0",
+            "0000:00:02.0",
+            "0000:00:1f.0",
+            "0000:00:1f.2",
+            "0000:00:1f.3",
+        ]
+        with mock.patch("glob.glob", return_value=iommu_devices):
+            success, output = self.perform_check(
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects=OSError,
+            )
         assert output == textwrap.dedent(
             f"""\
-            WARN -- IOMMU
-                    Failed to check whether vfio-pci 'no-IOMMU' mode is enabled by reading
-                    /sys/module/vfio/parameters/enable_unsafe_noiommu_mode.
-                    IOMMU is recommended for security when using the vfio-pci kernel driver.
+            PASS -- IOMMU
+                    IOMMU enabled for vfio-pci with the following PCI device(s):
+                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
+                    device4 (0000:00:1f.2)
             """
         )
-        assert not success
+        assert success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
         success, output = self.perform_check(
-            capsys, read_effects=Exception("test exception")
+            capsys,
+            cmd_effects=[
+                "",
+                None,
+                subprocess.SubprocessError,
+                subprocess.SubprocessError,
+            ],
+            read_effects=Exception("test exception"),
         )
         assert output == textwrap.dedent(
             f"""\
@@ -1960,6 +2217,38 @@ Bus info          Device      Class      Description
             """
         )
         assert not success
+
+    def test_vfio_pci_not_enabled(self, capsys):
+        """Test for when vfio-pci is not enabled."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.SubprocessError,
+                subprocess.SubprocessError,
+            ],
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- IOMMU (vfio-pci driver unavailable)
+            """
+        )
+        assert success
+
+    def test_warn_igb_uio_enabled(self, capsys):
+        """
+        Test a failure that would result in a WARN result, but with igb_uio
+        enabled is just INFO.
+        """
+        success, output = self.perform_check(
+            capsys, cmd_effects=["", None, "", None], read_effects="Y"
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- IOMMU
+                    vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
+            """
+        )
+        assert success
 
 
 class TestSharedMemPageMaxSize(_CheckTestBase):
