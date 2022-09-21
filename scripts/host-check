@@ -862,12 +862,10 @@ def check_iommu() -> CheckFuncReturn:
     if not PCIDriver("vfio-pci").is_supported():
         return CheckState.NEUTRAL, "vfio-pci driver unavailable"
 
-    # If igb_uio is supported, treat failures and warnings as info, because
-    # even though IOMMU isn't enabled, igb_uio can be used.
-    fail_state = CheckState.FAILED
+    # If igb_uio is supported, treat warnings as info, because even though
+    # IOMMU isn't enabled, igb_uio can be used.
     warning_state = CheckState.WARNING
     if PCIDriver("igb_uio").is_supported():
-        fail_state = CheckState.NEUTRAL
         warning_state = CheckState.NEUTRAL
 
     recommendation = "IOMMU is recommended for security when using the vfio-pci kernel driver."
@@ -893,7 +891,7 @@ def check_iommu() -> CheckFuncReturn:
         ]
         if not iommu_devices:  # check if the directory is empty
             return (
-                fail_state,
+                warning_state,
                 "The kernel module vfio-pci cannot be used, as IOMMU is not enabled.\n"
                 + recommendation,
             )
@@ -911,7 +909,9 @@ def check_iommu() -> CheckFuncReturn:
             r"pci@([\da-f]{4}:[\da-f]{2}:[\da-f]{2}\.[\da-f])\s+(\S+)", output
         )
         if not matches:
-            return fail_state, "no PCI network devices found"
+            # This should always be a warning - we need PCI devices whether
+            # we're using igb_uio or vfio-pci.
+            return CheckState.WARNING, "no PCI network devices found"
         network_devices = set()
         net_devices_dict = {}
         for match in matches:

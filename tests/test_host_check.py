@@ -2072,7 +2072,7 @@ Bus info          Device      Class      Description
             )
         assert output == textwrap.dedent(
             f"""\
-            FAIL -- IOMMU (no PCI network devices found)
+            WARN -- IOMMU (no PCI network devices found)
             """
         )
         assert not success
@@ -2114,7 +2114,7 @@ Bus info          Device      Class      Description
             )
         assert output == textwrap.dedent(
             f"""\
-            FAIL -- IOMMU
+            WARN -- IOMMU
                     The kernel module vfio-pci cannot be used, as IOMMU is not enabled.
                     IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
@@ -2230,36 +2230,6 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         assert output == textwrap.dedent(
             f"""\
             INFO -- IOMMU (vfio-pci driver unavailable)
-            """
-        )
-        assert success
-
-    def test_fail_igb_uio_enabled(self, capsys):
-        """
-        Test a failure in the IOMMU check when igb_uio is enabled (should just
-        result in INFO result).
-        """
-        lshw_output = """\
-Bus info          Device      Class      Description
-====================================================
-        """
-        iommu_devices = [
-            "0000:00:00.0",
-            "0000:00:01.0",
-            "0000:00:02.0",
-            "0000:00:1f.0",
-            "0000:00:1f.2",
-            "0000:00:1f.3",
-        ]
-        with mock.patch("glob.glob", return_value=iommu_devices):
-            success, output = self.perform_check(
-                capsys,
-                cmd_effects=["", None, "", None, lshw_output],
-                read_effects="N",
-            )
-        assert output == textwrap.dedent(
-            f"""\
-            INFO -- IOMMU (no PCI network devices found)
             """
         )
         assert success
