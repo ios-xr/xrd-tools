@@ -9,7 +9,7 @@ It is planned to support 7.8.1 when this version is released.
 
 ### v1.0.2 (2022-09-21)
 
-- Do not run extra checks in `host-check` by default.
+- Do not run 'extra checks' in `host-check` by default.
 - Make igb_uio a supported PCI driver, only failing `host-check` if no interface driver is loaded.
 - Only check if IOMMU is enabled if vfio-pci is being used, and handle the case where the vfio-pci 'no IOMMU' mode is unconfigurable.
 
