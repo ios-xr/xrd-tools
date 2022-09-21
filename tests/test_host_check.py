@@ -1844,7 +1844,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         assert not success
 
     def test_loaded_and_installed(self, capsys):
-        """Test where vfio-pci is loaded and igb_uio is installed."""
+        """Test where vfio-pci is loaded and igb_uio is installed but not loaded."""
         success, output = self.perform_check(
             capsys,
             cmd_effects=[
@@ -1867,7 +1867,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         assert success
 
     def test_installed_and_builtin(self, capsys):
-        """Test where vfio-pci is installed and igb_uio is builtin."""
+        """Test where vfio-pci is installed but not loaded and igb_uio is builtin."""
         success, output = self.perform_check(
             capsys,
             cmd_effects=[

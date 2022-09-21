@@ -867,7 +867,7 @@ def check_iommu() -> CheckFuncReturn:
     if not PCIDriver("vfio-pci").is_supported:
         return (
             CheckState.NEUTRAL,
-            "IOMMU is not required as the vfio-pci module is not loaded.",
+            "vfio-pci driver unavailable",
         )
     recommendation = "IOMMU is recommended for security when using the vfio-pci kernel driver."
     noiommu_filepath = "/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"
@@ -1319,7 +1319,7 @@ def run_extra_checks(extra_checks: List[str]) -> Tuple[Set[str], Set[str]]:
         else:
             extras_not_supported.add(extra_check)
 
-    return (extras_supported, extras_not_supported)
+    return extras_supported, extras_not_supported
 
 
 def print_extra_checks(supported: Set[str], not_supported: Set[str]) -> None:
@@ -1450,7 +1450,6 @@ def main(argv: List[str]) -> NoReturn:
     if args.platform:
         success = run_specified_checks(args.platform, args.extra_checks)
     else:
-        # We've already checked that extra checks aren't specified in this case.
         success = run_all_checks(args.extra_checks)
     sys.exit(0 if success else 1)
 
