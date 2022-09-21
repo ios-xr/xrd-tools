@@ -1935,6 +1935,8 @@ class TestIOMMU(_CheckTestBase):
     cmds = [
         "lsmod | grep -q '^vfio_pci '",
         "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",
+        "lsmod | grep -q '^igb_uio '",
+        "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",
         "lshw -businfo -c network",
     ]
     files = ["/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"]
@@ -1962,7 +1964,15 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
-                capsys, cmd_effects=["", None, lshw_output], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -1985,7 +1995,15 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         iommu_devices = ["0000:00:00.0", "0000:00:01.0"]
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
-                capsys, cmd_effects=["", None, lshw_output], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -2008,7 +2026,13 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
                 capsys,
-                cmd_effects=["", None, subprocess.SubprocessError],
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                ],
                 read_effects="N",
             )
         assert output == textwrap.dedent(
@@ -2036,7 +2060,15 @@ Bus info          Device      Class      Description
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
-                capsys, cmd_effects=["", None, lshw_output], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -2049,7 +2081,14 @@ Bus info          Device      Class      Description
         """Test the case where the IOMMU check throws an error."""
         with mock.patch("glob.glob", side_effect=Exception):
             success, output = self.perform_check(
-                capsys, cmd_effects=["", None], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -2064,7 +2103,14 @@ Bus info          Device      Class      Description
         """Test the case where IOMMU is not enabled."""
         with mock.patch("glob.glob", return_value=[]):
             success, output = self.perform_check(
-                capsys, cmd_effects=["", None], read_effects="N"
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                ],
+                read_effects="N",
             )
         assert output == textwrap.dedent(
             f"""\
@@ -2078,7 +2124,14 @@ Bus info          Device      Class      Description
     def test_no_iommu_mode(self, capsys):
         """Test the case where vfio-pci is set up in no-IOMMU mode."""
         success, output = self.perform_check(
-            capsys, cmd_effects=["", None], read_effects="Y"
+            capsys,
+            cmd_effects=[
+                "",
+                None,
+                subprocess.SubprocessError,
+                subprocess.SubprocessError,
+            ],
+            read_effects="Y",
         )
         assert output == textwrap.dedent(
             f"""\
@@ -2088,8 +2141,11 @@ Bus info          Device      Class      Description
         )
         assert not success
 
-    def test_no_iommu_oserror(self, capsys):
-        """Test the case where the check for vfio-pci 'no-IOMMU' mode throws an OS error."""
+    def test_no_iommu_unconfigurable(self, capsys):
+        """
+        Test the case where the check for vfio-pci 'no-IOMMU' mode throws an
+        OS error because IOMMU is unconfigurable - should result in success.
+        """
         lshw_output = """\
 Bus info          Device      Class      Description
 ====================================================
@@ -2112,7 +2168,13 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         with mock.patch("glob.glob", return_value=iommu_devices):
             success, output = self.perform_check(
                 capsys,
-                cmd_effects=["", None, lshw_output],
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
                 read_effects=OSError,
             )
         assert output == textwrap.dedent(
@@ -2129,7 +2191,12 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         """Test unexpected error being raised."""
         success, output = self.perform_check(
             capsys,
-            cmd_effects=["", None],
+            cmd_effects=[
+                "",
+                None,
+                subprocess.SubprocessError,
+                subprocess.SubprocessError,
+            ],
             read_effects=Exception("test exception"),
         )
         assert output == textwrap.dedent(
@@ -2156,14 +2223,59 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         success, output = self.perform_check(
             capsys,
             cmd_effects=[
-                subprocess.SubprocessError(1, ""),
-                subprocess.SubprocessError(1, ""),
+                subprocess.SubprocessError,
+                subprocess.SubprocessError,
             ],
         )
         assert output == textwrap.dedent(
             f"""\
+            INFO -- IOMMU (vfio-pci driver unavailable)
+            """
+        )
+        assert success
+
+    def test_fail_igb_uio_enabled(self, capsys):
+        """
+        Test a failure in the IOMMU check when igb_uio is enabled (should just
+        result in INFO result).
+        """
+        lshw_output = """\
+Bus info          Device      Class      Description
+====================================================
+        """
+        iommu_devices = [
+            "0000:00:00.0",
+            "0000:00:01.0",
+            "0000:00:02.0",
+            "0000:00:1f.0",
+            "0000:00:1f.2",
+            "0000:00:1f.3",
+        ]
+        with mock.patch("glob.glob", return_value=iommu_devices):
+            success, output = self.perform_check(
+                capsys,
+                cmd_effects=["", None, "", None, lshw_output],
+                read_effects="N",
+            )
+        assert output == textwrap.dedent(
+            f"""\
+            INFO -- IOMMU (no PCI network devices found)
+            """
+        )
+        assert success
+
+    def test_warn_igb_uio_enabled(self, capsys):
+        """
+        Test a failure that would result in a WARN result, but with igb_uio
+        enabled is just INFO.
+        """
+        success, output = self.perform_check(
+            capsys, cmd_effects=["", None, "", None], read_effects="Y"
+        )
+        assert output == textwrap.dedent(
+            f"""\
             INFO -- IOMMU
-                    IOMMU is not required as the vfio-pci module is not loaded.
+                    vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
             """
         )
         assert success
