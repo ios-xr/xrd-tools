@@ -9,8 +9,8 @@ It is planned to support 7.8.1 when this version is released.
 
 ### v1.0.3 (2022-10-26)
 
-- Fix AppArmor bug in host-check script.
-- Gives a warning if AppArmor is enabled
+- To check if AppArmor is enabled, `host-check` script now looks at `"/sys/kernel/security/apparmor/profiles"` instead of `"/sys/module/apparmor/parameters/enabled"`.
+- `host-check` now gives a warning if AppArmor is enabled.
 
 
 ### v1.0.2 (2022-09-21)
