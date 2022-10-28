@@ -584,7 +584,7 @@ def check_linux_security_modules() -> CheckFuncReturn:
             "AppArmor is enabled. XRd is currently unable to run with the\n"
             "default docker profile, but can be run with\n"
             "'--security-opt apparmor=unconfined' or equivalent.\n"
-            "But some features might not work, specifically ZTP."
+            "But some features might not work, such as ZTP."
         )
         ch_state = CheckState.WARNING
     if _selinux_is_enabled():
