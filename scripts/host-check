@@ -532,14 +532,15 @@ def _apparmor_is_enabled() -> bool:
     """True if AppArmor is enabled."""
     try:
         with open(
-            "/sys/module/apparmor/parameters/enabled", encoding="utf-8"
+            "/sys/kernel/security/apparmor/profiles", encoding="utf-8"
         ) as f:
-            contents = f.read().rstrip()
+            contents = f.read()
     except FileNotFoundError:
         # If the file is not found apparmor is not installed.
         return False
 
-    return contents == "Y"
+    # If the file is not empty apparmor is running.
+    return contents != ""
 
 
 def _selinux_is_enabled() -> bool:
@@ -557,13 +558,16 @@ def _selinux_is_enabled() -> bool:
 def check_linux_security_modules() -> CheckFuncReturn:
     """Inform if LSMs AppArmor/SELinux are enabled on the host system."""
     msgs = []
+    ch_state = CheckState.NEUTRAL
 
     if _apparmor_is_enabled():
         msgs.append(
             "AppArmor is enabled. XRd is currently unable to run with the\n"
             "default docker profile, but can be run with\n"
-            "'--security-opt apparmor=unconfined' or equivalent."
+            "'--security-opt apparmor=unconfined' or equivalent.\n"
+            "However, some features might not work, such as ZTP."
         )
+        ch_state = CheckState.WARNING
     if _selinux_is_enabled():
         msgs.append(
             "SELinux is enabled. XRd is currently unable to run with the\n"
@@ -574,7 +578,7 @@ def check_linux_security_modules() -> CheckFuncReturn:
     if not msgs:
         msgs.append("No LSMs are enabled")
 
-    return CheckState.NEUTRAL, "\n".join(msgs)
+    return ch_state, "\n".join(msgs)
 
 
 # -------------------------------------
