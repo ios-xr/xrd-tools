@@ -1363,7 +1363,7 @@ class TestLSMs(_CheckTestBase):
                     AppArmor is enabled. XRd is currently unable to run with the
                     default docker profile, but can be run with
                     '--security-opt apparmor=unconfined' or equivalent.
-                    But some features might not work, such as ZTP.
+                    However, some features might not work, such as ZTP.
             """
         )
         assert not success
@@ -1402,7 +1402,7 @@ class TestLSMs(_CheckTestBase):
                     AppArmor is enabled. XRd is currently unable to run with the
                     default docker profile, but can be run with
                     '--security-opt apparmor=unconfined' or equivalent.
-                    But some features might not work, such as ZTP.
+                    However, some features might not work, such as ZTP.
                     SELinux is enabled. XRd is currently unable to run with the
                     default policy, but can be run with
                     '--security-opt label=disable' or equivalent.
