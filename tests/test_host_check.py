@@ -1327,7 +1327,7 @@ class TestLSMs(_CheckTestBase):
 
     check_group = "base"
     check_name = "Linux Security Modules"
-    files = ["/sys/module/apparmor/parameters/enabled", "/etc/selinux/config"]
+    files = ["/sys/kernel/security/apparmor/profiles", "/etc/selinux/config"]
 
     def test_neither_enabled(self, capsys):
         """
@@ -1346,7 +1346,7 @@ class TestLSMs(_CheckTestBase):
         assert success
 
         success, output = self.perform_check(
-            capsys, read_effects=["N", "SELINUX=disabled"]
+            capsys, read_effects=["", "SELINUX=disabled"]
         )
         assert output == expected
         assert success
@@ -1354,24 +1354,23 @@ class TestLSMs(_CheckTestBase):
     def test_apparmor_enabled(self, capsys):
         """Test AppArmor config set to enabled."""
         success, output = self.perform_check(
-            capsys, read_effects=["Y", FileNotFoundError]
+            capsys,
+            read_effects=["nvidia_modprobe (enforce)", FileNotFoundError],
         )
         assert output == textwrap.dedent(
             f"""\
-            INFO -- Linux Security Modules
+            WARN -- Linux Security Modules
                     AppArmor is enabled. XRd is currently unable to run with the
                     default docker profile, but can be run with
                     '--security-opt apparmor=unconfined' or equivalent.
+                    However, some features might not work, such as ZTP.
             """
         )
-        assert success
+        assert not success
 
     def test_selinux_enabled(self, capsys):
         """Test SELinux config set to enabled."""
-        success, output = self.perform_check(
-            capsys, read_effects=[FileNotFoundError, "SELINUX=enforcing"]
-        )
-        assert output == textwrap.dedent(
+        expected = textwrap.dedent(
             f"""\
             INFO -- Linux Security Modules
                     SELinux is enabled. XRd is currently unable to run with the
@@ -1379,25 +1378,37 @@ class TestLSMs(_CheckTestBase):
                     '--security-opt label=disable' or equivalent.
             """
         )
+        success, output = self.perform_check(
+            capsys, read_effects=[FileNotFoundError, "SELINUX=enforcing"]
+        )
+        assert output == expected
+        assert success
+
+        success, output = self.perform_check(
+            capsys, read_effects=["", "SELINUX=enforcing"]
+        )
+        assert output == expected
         assert success
 
     def test_both_enabled(self, capsys):
         """Test the case where both AppArmor and SELinux are enabled."""
         success, output = self.perform_check(
-            capsys, read_effects=["Y", "SELINUX=enforcing"]
+            capsys,
+            read_effects=["nvidia_modprobe (enforce)", "SELINUX=enforcing"],
         )
         assert output == textwrap.dedent(
             f"""\
-            INFO -- Linux Security Modules
+            WARN -- Linux Security Modules
                     AppArmor is enabled. XRd is currently unable to run with the
                     default docker profile, but can be run with
                     '--security-opt apparmor=unconfined' or equivalent.
+                    However, some features might not work, such as ZTP.
                     SELinux is enabled. XRd is currently unable to run with the
                     default policy, but can be run with
                     '--security-opt label=disable' or equivalent.
             """
         )
-        assert success
+        assert not success
 
 
 # -------------------------------------
