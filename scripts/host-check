@@ -422,7 +422,7 @@ def check_cgroups() -> CheckFuncReturn:
         return (
             CheckState.FAILED,
             "Error trying to determine the cgroups version - /sys/fs/cgroup is expected to\n"
-            "contain cgroup v1 mounts.",
+            "contain cgroup mounts.",
         )
 
     if version == 2:
@@ -579,6 +579,50 @@ def check_linux_security_modules() -> CheckFuncReturn:
         msgs.append("No LSMs are enabled")
 
     return ch_state, "\n".join(msgs)
+
+
+def check_realtime_group_sched() -> CheckFuncReturn:
+    """Check that real-time group scheduling is disabled"""
+    recommendation = (
+        "Running with real-time group scheduling enabled is not supported.\n"
+        "If real-time group scheduling (RT_GROUP_SCHED) is configured in the kernel,\n"
+        "it is required that this feature is disabled at runtime by adding\n"
+        "'kernel.sched_rt_runtime_us=-1' to /etc/sysctl.conf or in a dedicated conf\n"
+        "file under /etc/sysctl.d/.\n"
+        "For a temporary fix, run:\n"
+        "  sysctl -w kernel.sched_rt_runtime_us=-1"
+    )
+
+    # We've specified a dependency on the Cgroup check, so can assume this will succeed.
+    cgroup_version = _get_cgroup_version()
+
+    if cgroup_version == 1:
+        rt_runtime_us_path = "/sys/fs/cgroup/cpu/cpu.rt_runtime_us"
+    else:
+        rt_runtime_us_path = "/sys/fs/cgroup/cpu.rt_runtime_us"
+
+    if os.path.exists(rt_runtime_us_path):
+        kernel_sched_rt_path = "/proc/sys/kernel/sched_rt_runtime_us"
+        try:
+            with open(kernel_sched_rt_path, "r", encoding="utf-8") as f:
+                val = int(f.read().strip())
+                if val != -1:
+                    return (
+                        CheckState.FAILED,
+                        f"The kernel parameter kernel.sched_rt_runtime_us is set to {val}\n"
+                        f"but must be disabled by setting it to '-1'.\n"
+                        + recommendation,
+                    )
+                else:
+                    return CheckState.SUCCESS, "disabled at runtime"
+        except Exception:
+            return (
+                CheckState.WARNING,
+                f"Failed to read {kernel_sched_rt_path}, unable to check if\n"
+                f"real-time group scheduling is disabled.\n" + recommendation,
+            )
+
+    return CheckState.SUCCESS, "disabled in kernel config"
 
 
 # -------------------------------------
@@ -1180,6 +1224,9 @@ BASE_CHECKS = [
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
+    Check(
+        "Real-time Group Scheduling", check_realtime_group_sched, ["Cgroups"]
+    ),
 ]
 
 CONTROL_PLANE_CHECKS = [

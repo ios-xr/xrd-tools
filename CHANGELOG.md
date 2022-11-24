@@ -1,6 +1,12 @@
 # Changelog
 
 
+## Preview 7.9.1
+
+Changes added to the preview for 7.9.1.
+
+- Add check to ensure real-time group scheduling is disabled on the host
+
 ## Preview 7.8.1
 
 Changes added to the preview for 7.8.1.
