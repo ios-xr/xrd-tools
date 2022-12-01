@@ -164,15 +164,6 @@ CONTAINER_EXE="docker"
 # By default we provide a MgmtEth interface with chksum.
 MGMT_INTERFACES="linux:eth0,chksum"
 
-OPTS=$(getopt -o hnkf:e:v:p:c: \
-    --long help,dry-run,keep,privileged,name:,plat:,platform:,\
-first-boot-config:,every-boot-config:,first-boot-script:,every-boot-script:,\
-xrd-volume:,ctr-client:,interfaces:,mgmt-interfaces:,disk-limit:,\
-ztp-enable,ztp-config:,args: \
-    -n 'parse-options' -- "$@") || bad_usage
-
-eval set -- "$OPTS"
-
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h | --help )
@@ -250,18 +241,15 @@ while [[ $# -gt 0 ]]; do
            shift
            ;;
         *)
-            if [[ ! $IMAGE ]]; then
-                IMAGE=$1
-                shift
-            else
-                echo "Unexpected argument '$1'" >&2
-                bad_usage
-            fi
-            ;;
+           CTR_MGR_ARGS+=("$1")
+           shift
+           ;;
     esac
 done
 
-if [[ ! $IMAGE ]]; then
+if [[ ! $IMAGE && -n ${CTR_MGR_ARGS[-1]} ]]; then
+    IMAGE="${CTR_MGR_ARGS[-1]}"
+elif [[ ! $IMAGE ]]; then
     echo "Must specify container image" >&2
     bad_usage
 fi
@@ -468,4 +456,4 @@ _runcmd \
         "${mount_args[@]}" \
         "${env_args[@]}" \
         "${extra_args[@]}" \
-        "$IMAGE" || exit $?
+        "${CTR_MGR_ARGS[@]}" || exit $?
