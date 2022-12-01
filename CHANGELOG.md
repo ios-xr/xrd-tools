@@ -9,7 +9,7 @@ It is planned to support 7.8.1 when this version is released.
 
 ### v1.0.4 (2022-11-30)
 
-- `host-check` script now gives a different error when a command times out
+- Indicate when a command times out in the `host-check` script.
 
 ### v1.0.3 (2022-10-26)
 

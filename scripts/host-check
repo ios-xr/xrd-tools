@@ -128,9 +128,8 @@ _CMD = Union[str, List[str]]
 
 class CmdTimeoutError(Exception):
     """
-    Error to "replace" subprocess.TimeoutExpired
-    This is so that the error is treated differently from all the other errors
-    in subprocess.SubprocessError
+    This is so that command timeouts can be handled separately to other
+    subprocess.SubprocessError errors.
 
     """
 
