@@ -6,6 +6,7 @@
 The v1 release supports Cisco IOS-XR release version 7.7.1.
 It is planned to support 7.8.1 when this version is released.
 
+
 ### v1.0.5 (2022-12-02)
 
 - In `launch-xrd` script, new way to pass extra args to container manager. `--args` is no longer required. Every unknown arg to the script will be passed to the container manager. IMG now has to be the last argument to the script.
