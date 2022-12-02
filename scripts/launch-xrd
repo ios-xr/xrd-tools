@@ -69,6 +69,9 @@ Optional arguments:
                                 up after boot, by default ZTP is disabled
                                 (cannot be used with IP snooping)
   --ztp-config FILE             Enable ZTP with custom ZTP ini configuration
+  --boot-log-level LEVEL        Control the level at which boot logging starts
+                                being printed to the console, one of: ERROR,
+                                WARNING (default), INFO, DEBUG
   --args '<arg1> <arg2> ...'    Extra arguments to pass to '<ctr_mgr> run'
 
 XRd Control Plane arguments:
@@ -168,7 +171,7 @@ OPTS=$(getopt -o hnkf:e:v:p:c: \
     --long help,dry-run,keep,privileged,name:,plat:,platform:,\
 first-boot-config:,every-boot-config:,first-boot-script:,every-boot-script:,\
 xrd-volume:,ctr-client:,interfaces:,mgmt-interfaces:,disk-limit:,\
-ztp-enable,ztp-config:,args: \
+boot-log-level:,ztp-enable,ztp-config:,args: \
     -n 'parse-options' -- "$@") || bad_usage
 
 eval set -- "$OPTS"
@@ -236,6 +239,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ztp-config )
             ZTP_CONFIG=$2
+            shift 2
+            ;;
+        --boot-log-level )
+            BOOT_LOG_LEVEL=$2
             shift 2
             ;;
         --privileged )
@@ -392,8 +399,6 @@ else
         # AppArmor and SELinux are not supported with the default profiles.
         "--security-opt" "apparmor=unconfined"
         "--security-opt" "label=disable"
-        # Pass through the host's cgroup mount, needed by systemd.
-        "-v" "/sys/fs/cgroup:/sys/fs/cgroup:ro"
     )
     # Add XRd vRouter specific unprivileged arguments:
     if [[ $PLATFORM == "xrd-vrouter" ]]; then
@@ -443,6 +448,9 @@ if [[ $DISK_LIMIT ]]; then
 fi
 if [[ $IS_ZTP_ENABLED == 1 ]]; then
     env_args+=("--env" "XR_ZTP_ENABLE=1")
+fi
+if [[ $BOOT_LOG_LEVEL ]]; then
+    env_args+=("--env" "XR_BOOT_LOG_LEVEL=$BOOT_LOG_LEVEL")
 fi
 
 if [[ $CONTAINER_NAME ]]; then
