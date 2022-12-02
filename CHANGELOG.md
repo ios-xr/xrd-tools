@@ -23,6 +23,10 @@ The v1 release supports Cisco IOS-XR release version 7.7.1.
 It is planned to support 7.8.1 when this version is released.
 
 
+### v1.0.4 (2022-11-30)
+
+- Indicate when a command times out in the `host-check` script.
+
 ### v1.0.3 (2022-10-26)
 
 - To check if AppArmor is enabled, `host-check` script now looks at `"/sys/kernel/security/apparmor/profiles"` instead of `"/sys/module/apparmor/parameters/enabled"`.
