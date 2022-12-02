@@ -126,6 +126,21 @@ def purple(string: str) -> str:
 _CMD = Union[str, List[str]]
 
 
+class CmdTimeoutError(Exception):
+    """
+    This is so that command timeouts can be handled separately to other
+    subprocess.SubprocessError errors.
+
+    """
+
+    def __init__(self, cmd: _CMD):
+        super().__init__()
+        self.cmd = cmd if type(cmd) is str else " ".join(cmd)
+
+    def __str__(self) -> str:
+        return f"Timed out while executing command: {self.cmd}"
+
+
 def run_cmd(
     cmd: _CMD,
     *,
@@ -160,8 +175,10 @@ def run_cmd(
         check=check,
     )
     kwargs = {**default_kwargs, **kwargs}
-
-    ret = subprocess.run(cmd, **kwargs)
+    try:
+        ret = subprocess.run(cmd, **kwargs)
+    except subprocess.TimeoutExpired as exc:
+        raise CmdTimeoutError(exc.cmd) from exc
     return ret.stdout, ret.stderr
 
 
@@ -1297,6 +1314,9 @@ def perform_checks(checks: List[Check]) -> bool:
                 else:
                     status = CheckState.SUCCESS
                     msg = None
+            except CmdTimeoutError as e:
+                status = CheckState.WARNING
+                msg = f"Unexpected error: {e}"
             except Exception as e:
                 status = CheckState.FAILED
                 msg = f"Unexpected error: {e}"
