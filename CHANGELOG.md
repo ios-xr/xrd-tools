@@ -9,8 +9,7 @@ It is planned to support 7.8.1 when this version is released.
 
 ### v1.0.5 (2022-12-02)
 
-- In `launch-xrd` script, new way to pass extra args to container manager. `--args` is no longer required. Every unknown arg to the script will be passed to the container manager. IMG now has to be the last argument to the script.
-- `--args` is still supported for backwards compatibility, but will be removed in the future.
+- In the `launch-xrd` script the mechanism for passing extra args to the container manager has changed. The `--args` argument is no longer required - every unrecognised argument will be passed to the container manager. The container image must now be passed as the last argument to the script. The `--args` method is still supported for backwards compatibility, but will be removed in the future.
 
 ### v1.0.4 (2022-11-30)
 
