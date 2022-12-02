@@ -808,6 +808,20 @@ class TestCPUCores(_CheckTestBase):
         )
         assert not success
 
+    def test_timeout_error(self, capsys):
+        """Test timeout error being raised."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- CPU cores
+                    Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
+            """
+        )
+        assert not success
+
 
 class TestKernelVersion(_CheckTestBase):
     """Tests for the kernel version check."""
@@ -1036,6 +1050,20 @@ class TestCgroups(_CheckTestBase):
             FAIL -- Cgroups
                     Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
                     contain cgroup v1 mounts.
+            """
+        )
+        assert not success
+
+    def test_timeout_error(self, capsys):
+        """Test timeout error being raised."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- systemd mounts
+                    Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
         assert not success
