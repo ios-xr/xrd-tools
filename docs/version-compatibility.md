@@ -4,7 +4,7 @@ This file documents compatibility between versions of this project with XR relea
 In some cases extra arguments will be required to continue using older XR releases, and those cases will be documented here.
 
 
-## Preview 7.8.1
+## XR 7.8.1
 
 Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd).
 
