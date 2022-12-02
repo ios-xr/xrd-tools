@@ -28,4 +28,4 @@ Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd)
 
 ## v1.0
 
-Supports XR 7.7.1 (the first released versions of XRd).
+Supports XR 7.7.1 to 7.8.1 (the first released versions of XRd).
