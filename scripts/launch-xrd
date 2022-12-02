@@ -207,10 +207,6 @@ while [[ $# -gt 0 ]]; do
             CONTAINER_EXE=$2
             shift 2
             ;;
-        --name )
-            CONTAINER_NAME=$2
-            shift 2
-            ;;
         --interfaces )
             INTERFACES=$2
             shift 2
@@ -435,9 +431,6 @@ if [[ $IS_ZTP_ENABLED == 1 ]]; then
     env_args+=("--env" "XR_ZTP_ENABLE=1")
 fi
 
-if [[ $CONTAINER_NAME ]]; then
-    name_args+=("--name" "$CONTAINER_NAME")
-fi
 if [[ $USE_RM == 1 ]]; then
     run_args+=("--rm")
 fi
