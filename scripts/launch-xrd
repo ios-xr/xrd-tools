@@ -25,7 +25,7 @@
 
 _usage_short () {
     echo -n "\
-Usage: $(basename "$0") [-h|--help] [-n|--dry-run] IMG [<opts>]
+Usage: $(basename "$0") [-h|--help] [-n|--dry-run] [<opts>] IMG
 "
 }
 
@@ -69,7 +69,9 @@ Optional arguments:
                                 up after boot, by default ZTP is disabled
                                 (cannot be used with IP snooping)
   --ztp-config FILE             Enable ZTP with custom ZTP ini configuration
-  --args '<arg1> <arg2> ...'    Extra arguments to pass to '<ctr_mgr> run'
+  <arg1> <arg2>                 Extra arguments to pass to '<ctr_mgr> run'.
+                                'launch-xrd <arg1> IMG' would become
+                                '<ctr_mgr> run <arg1> IMG'
 
 XRd Control Plane arguments:
   IF_TYPE := { linux }          Interface type
