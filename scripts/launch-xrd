@@ -69,7 +69,6 @@ Optional arguments:
                                 up after boot, by default ZTP is disabled
                                 (cannot be used with IP snooping)
   --ztp-config FILE             Enable ZTP with custom ZTP ini configuration
-
   --boot-log-level LEVEL        Control the level at which boot logging starts
                                 being printed to the console, one of: ERROR,
                                 WARNING (default), INFO, DEBUG

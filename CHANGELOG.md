@@ -5,6 +5,10 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
+### v1.1.1 (2022-12-05)
+
+- In the `launch-xrd` script the mechanism for passing extra args to the container manager has changed. The `--args` argument is no longer required - every unrecognised argument will be passed to the container manager. The container image must now be passed as the last argument to the script. The `--args` method is still supported for backwards compatibility, but will be removed in the future.
+
 ## v1.1.0 (2022-12-02)
 
 Changes corresponding to the release of XR version 7.8.1.
@@ -13,10 +17,6 @@ Changes corresponding to the release of XR version 7.8.1.
 - Stop passing host `/sys/fs/cgroup` mount through to the container
 - Update cgroup check in `host-check` and remove corresponding "Systemd mounts" check (no longer required for XR 7.8.1 onwards)
 - Remove hard requirement for cgroups v1 in `host-check` (cgroups v2 supported for lab use)
-
-### v1.0.5 (2022-12-02)
-
-- In the `launch-xrd` script the mechanism for passing extra args to the container manager has changed. The `--args` argument is no longer required - every unrecognised argument will be passed to the container manager. The container image must now be passed as the last argument to the script. The `--args` method is still supported for backwards compatibility, but will be removed in the future.
 
 ### v1.0.4 (2022-11-30)
 
