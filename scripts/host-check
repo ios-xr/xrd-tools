@@ -439,7 +439,7 @@ def check_cgroups() -> CheckFuncReturn:
         return (
             CheckState.FAILED,
             "Error trying to determine the cgroups version - /sys/fs/cgroup is expected to\n"
-            "contain cgroup mounts.",
+            "contain cgroup v1 mounts.",
         )
 
     if version == 2:
