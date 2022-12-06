@@ -5,7 +5,7 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
-## v1.1.0 (2022-12-02)
+### v1.1.0 (2022-12-02)
 
 Changes corresponding to the release of XR version 7.8.1.
 
@@ -14,9 +14,11 @@ Changes corresponding to the release of XR version 7.8.1.
 - Update cgroup check in `host-check` and remove corresponding "Systemd mounts" check (no longer required for XR 7.8.1 onwards)
 - Remove hard requirement for cgroups v1 in `host-check` (cgroups v2 supported for lab use)
 
+
 ### v1.0.4 (2022-11-30)
 
 - Indicate when a command times out in the `host-check` script.
+
 
 ### v1.0.3 (2022-10-26)
 
