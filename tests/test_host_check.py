@@ -970,6 +970,20 @@ class TestBaseKernelModules(_CheckTestBase):
         )
         assert not success
 
+    def test_timeout_error(self, capsys):
+        """Test timeout error being raised."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- Base kernel modules
+                    Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
+            """
+        )
+        assert not success
+
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
         success, output = self.perform_check(capsys, failed_deps=self.deps)
@@ -1050,20 +1064,6 @@ class TestCgroups(_CheckTestBase):
             FAIL -- Cgroups
                     Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
                     contain cgroup v1 mounts.
-            """
-        )
-        assert not success
-
-    def test_timeout_error(self, capsys):
-        """Test timeout error being raised."""
-        success, output = self.perform_check(
-            capsys,
-            cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
-        )
-        assert output == textwrap.dedent(
-            f"""\
-            WARN -- systemd mounts
-                    Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
         assert not success
@@ -1343,6 +1343,131 @@ class TestLSMs(_CheckTestBase):
                     SELinux is enabled. XRd is currently unable to run with the
                     default policy, but can be run with
                     '--security-opt label=disable' or equivalent.
+            """
+        )
+        assert not success
+
+
+class TestRealtimeGroupSched(_CheckTestBase):
+    """Tests for Real-time Group Scheduling disabled check"""
+
+    check_group = "base"
+    check_name = "Real-time Group Scheduling"
+    deps = ["Cgroups"]
+    files = ["/proc/sys/kernel/sched_rt_runtime_us"]
+
+    def test_v1_disabled_in_kernel_config(self, capsys):
+        """Test the v1 case where disabled in kernel config"""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=1
+        ), mock.patch("os.path.exists", return_value=False):
+            success, output = self.perform_check(capsys, read_effects=None)
+        assert (
+            output
+            == "PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
+        )
+        assert success
+
+    def test_v1_disabled_at_runtime(self, capsys):
+        """Test the v1 case where disabled at runtime"""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=1
+        ), mock.patch("os.path.exists", return_value=True):
+            success, output = self.perform_check(capsys, read_effects="-1")
+        assert (
+            output
+            == "PASS -- Real-time Group Scheduling (disabled at runtime)\n"
+        )
+        assert success
+
+    def test_v1_read_error(self, capsys):
+        """Test the limit being too low."""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=1
+        ), mock.patch("os.path.exists", return_value=True):
+            success, output = self.perform_check(
+                capsys, read_effects=Exception
+            )
+        assert output == textwrap.dedent(
+            """\
+            WARN -- Real-time Group Scheduling
+                    Failed to read /proc/sys/kernel/sched_rt_runtime_us, unable to check if
+                    real-time group scheduling is disabled.
+                    Running with real-time group scheduling enabled is not supported.
+                    If real-time group scheduling (RT_GROUP_SCHED) is configured in the kernel,
+                    it is required that this feature is disabled at runtime by adding
+                    'kernel.sched_rt_runtime_us=-1' to /etc/sysctl.conf or in a dedicated conf
+                    file under /etc/sysctl.d/.
+                    For a temporary fix, run:
+                      sysctl -w kernel.sched_rt_runtime_us=-1
+            """
+        )
+        assert not success
+
+    def test_v1_failure_enabled_at_runtime(self, capsys):
+        """Test the check fails in the v1 case where enabled at runtime"""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=1
+        ), mock.patch("os.path.exists", return_value=True):
+            success, output = self.perform_check(capsys, read_effects="950000")
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Real-time Group Scheduling
+                    The kernel parameter kernel.sched_rt_runtime_us is set to 950000
+                    but must be disabled by setting it to '-1'.
+                    Running with real-time group scheduling enabled is not supported.
+                    If real-time group scheduling (RT_GROUP_SCHED) is configured in the kernel,
+                    it is required that this feature is disabled at runtime by adding
+                    'kernel.sched_rt_runtime_us=-1' to /etc/sysctl.conf or in a dedicated conf
+                    file under /etc/sysctl.d/.
+                    For a temporary fix, run:
+                      sysctl -w kernel.sched_rt_runtime_us=-1
+            """
+        )
+        assert not success
+
+    def test_v2_disabled_in_kernel_config(self, capsys):
+        """Test the v2 case where disabled in kernel config"""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=2
+        ), mock.patch("os.path.exists", return_value=False):
+            success, output = self.perform_check(capsys, read_effects=None)
+        assert (
+            output
+            == "PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
+        )
+        assert success
+
+    def test_v2_disabled_at_runtime(self, capsys):
+        """Test the v2 case where disabled at runtime"""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=2
+        ), mock.patch("os.path.exists", return_value=True):
+            success, output = self.perform_check(capsys, read_effects="-1")
+        assert (
+            output
+            == "PASS -- Real-time Group Scheduling (disabled at runtime)\n"
+        )
+        assert success
+
+    def test_v2_failure_enabled_at_runtime(self, capsys):
+        """Test the check fails in the v2 case where enabled at runtime"""
+        with mock.patch(
+            "host_check._get_cgroup_version", return_value=2
+        ), mock.patch("os.path.exists", return_value=True):
+            success, output = self.perform_check(capsys, read_effects="950000")
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Real-time Group Scheduling
+                    The kernel parameter kernel.sched_rt_runtime_us is set to 950000
+                    but must be disabled by setting it to '-1'.
+                    Running with real-time group scheduling enabled is not supported.
+                    If real-time group scheduling (RT_GROUP_SCHED) is configured in the kernel,
+                    it is required that this feature is disabled at runtime by adding
+                    'kernel.sched_rt_runtime_us=-1' to /etc/sysctl.conf or in a dedicated conf
+                    file under /etc/sysctl.d/.
+                    For a temporary fix, run:
+                      sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
         assert not success
