@@ -12,7 +12,7 @@ Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd)
 
 - Does not support the `--boot-log-level` arg in `launch-xrd`.
 - Requires the host cgroup mount to be passed into the container manually:
-  - Pass the docker/podman arguments `-v /sys/fs/cgroup:/sys/fs/cgroup:ro` through `launch-xrd`.
+  - Pass the docker/podman arguments `--volume /sys/fs/cgroup:/sys/fs/cgroup:ro` through `launch-xrd`.
   - Add the following under the 'service' section in an `xr-compose` topology:
     ```yaml
     volumes:

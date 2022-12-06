@@ -252,11 +252,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ ${CTR_MGR_ARGS[-1]} ]]; then
-    IMAGE="${CTR_MGR_ARGS[-1]}"
-else
+if [[ ${#CTR_MGR_ARGS[@]} -eq 0 ]]; then
     echo "Must specify container image" >&2
     bad_usage
+else
+    IMAGE="${CTR_MGR_ARGS[-1]}"
 fi
 
 #
