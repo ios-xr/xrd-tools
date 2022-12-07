@@ -25,7 +25,7 @@
 
 _usage_short () {
     echo -n "\
-Usage: $(basename "$0") [-h|--help] [-n|--dry-run] IMG [<opts>]
+Usage: $(basename "$0") [-h|--help] [-n|--dry-run] [<opts>] IMG
 "
 }
 
@@ -72,7 +72,9 @@ Optional arguments:
   --boot-log-level LEVEL        Control the level at which boot logging starts
                                 being printed to the console, one of: ERROR,
                                 WARNING (default), INFO, DEBUG
-  --args '<arg1> <arg2> ...'    Extra arguments to pass to '<ctr_mgr> run'
+  <arg1> <arg2>                 Extra arguments to pass to '<ctr_mgr> run'.
+                                'launch-xrd <arg1> IMG' would become
+                                '<ctr_mgr> run <arg1> IMG'
 
 XRd Control Plane arguments:
   IF_TYPE := { linux }          Interface type
@@ -159,7 +161,6 @@ FIRST_BOOT_SCRIPT=""
 EVERY_BOOT_SCRIPT=""
 ZTP_CONFIG=""
 PERSIST_VOL=""
-CONTAINER_NAME=""
 INTERFACES=""
 DISK_LIMIT=""
 EXTRA_ARGS=""
@@ -167,14 +168,6 @@ CONTAINER_EXE="docker"
 # By default we provide a MgmtEth interface with chksum.
 MGMT_INTERFACES="linux:eth0,chksum"
 
-OPTS=$(getopt -o hnkf:e:v:p:c: \
-    --long help,dry-run,keep,privileged,name:,plat:,platform:,\
-first-boot-config:,every-boot-config:,first-boot-script:,every-boot-script:,\
-xrd-volume:,ctr-client:,interfaces:,mgmt-interfaces:,disk-limit:,\
-boot-log-level:,ztp-enable,ztp-config:,args: \
-    -n 'parse-options' -- "$@") || bad_usage
-
-eval set -- "$OPTS"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -217,10 +210,6 @@ while [[ $# -gt 0 ]]; do
             CONTAINER_EXE=$2
             shift 2
             ;;
-        --name )
-            CONTAINER_NAME=$2
-            shift 2
-            ;;
         --interfaces )
             INTERFACES=$2
             shift 2
@@ -257,20 +246,17 @@ while [[ $# -gt 0 ]]; do
            shift
            ;;
         *)
-            if [[ ! $IMAGE ]]; then
-                IMAGE=$1
-                shift
-            else
-                echo "Unexpected argument '$1'" >&2
-                bad_usage
-            fi
-            ;;
+           CTR_MGR_ARGS+=("$1")
+           shift
+           ;;
     esac
 done
 
-if [[ ! $IMAGE ]]; then
+if [[ ${#CTR_MGR_ARGS[@]} -eq 0 ]]; then
     echo "Must specify container image" >&2
     bad_usage
+else
+    IMAGE="${CTR_MGR_ARGS[-1]}"
 fi
 
 #
@@ -453,9 +439,6 @@ if [[ $BOOT_LOG_LEVEL ]]; then
     env_args+=("--env" "XR_BOOT_LOG_LEVEL=$BOOT_LOG_LEVEL")
 fi
 
-if [[ $CONTAINER_NAME ]]; then
-    name_args+=("--name" "$CONTAINER_NAME")
-fi
 if [[ $USE_RM == 1 ]]; then
     run_args+=("--rm")
 fi
@@ -476,4 +459,4 @@ _runcmd \
         "${mount_args[@]}" \
         "${env_args[@]}" \
         "${extra_args[@]}" \
-        "$IMAGE" || exit $?
+        "${CTR_MGR_ARGS[@]}" || exit $?
