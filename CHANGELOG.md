@@ -18,9 +18,11 @@ Changes corresponding to the release of XR version 7.8.1.
 - Update cgroup check in `host-check` and remove corresponding "Systemd mounts" check (no longer required for XR 7.8.1 onwards)
 - Remove hard requirement for cgroups v1 in `host-check` (cgroups v2 supported for lab use)
 
+
 ### v1.0.4 (2022-11-30)
 
 - Indicate when a command times out in the `host-check` script.
+
 
 ### v1.0.3 (2022-10-26)
 
