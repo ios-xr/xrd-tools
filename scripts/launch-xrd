@@ -397,9 +397,13 @@ else
             # Required for XRd vRouter to use vfio driver.
             "--device" "/dev/vfio"
         )
-        # Podman bug - it doesn't handle the first wildcard asterisk required
-        # in --device-cgroup-rule. However, Podman doesn't seem to restrict
-        # access to devices by default can just skip this arg for Podman.
+        # Podman bug -  Some newer versions give access to all devices, but
+        # some older ones (seen on v3.3.1) do not. For docker, we pass
+        # --device-cgroup-rule 'c *:* rwm', but podman's parsing of the first
+        # asterisk was only fixed in v4.2.0.  So to allow access you have to
+        # know the major device num to pass as e.g.
+        # --device-cgroup-rule 'c 244:* rwm' (where the number can vary on
+        # different hosts).
         if [[ $CONTAINER_MGR == docker ]]; then
             misc_args+=(
                 # Allow XRd vRouter to create character devices for handling
