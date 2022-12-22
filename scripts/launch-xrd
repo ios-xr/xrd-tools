@@ -243,12 +243,18 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -- )
-           shift
-           ;;
+            shift
+            if [[ ${#CTR_MGR_ARGS[@]} -ne 0 ]]; then
+                echo "When using --, use container manager args after it. These args are inavlid for the script ${CTR_MGR_ARGS[*]}" >&2
+                bad_usage
+            fi
+            CTR_MGR_ARGS+=("$@")
+            shift $#
+            ;;
         *)
-           CTR_MGR_ARGS+=("$1")
-           shift
-           ;;
+            CTR_MGR_ARGS+=("$1")
+            shift
+            ;;
     esac
 done
 
