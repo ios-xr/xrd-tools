@@ -72,9 +72,10 @@ Optional arguments:
   --boot-log-level LEVEL        Control the level at which boot logging starts
                                 being printed to the console, one of: ERROR,
                                 WARNING (default), INFO, DEBUG
-  <arg1> <arg2>                 Extra arguments to pass to '<ctr_mgr> run'.
-                                'launch-xrd <arg1> IMG' would become
-                                '<ctr_mgr> run <arg1> IMG'
+  [--] <arg1> <arg2>            Extra arguments to pass to '<ctr_mgr> run'.
+                                'launch-xrd <arg1> IMG' or 'launch-xrd --
+                                <arg1> IMG' would become '<ctr_mgr> run <arg1>
+                                IMG'
 
 XRd Control Plane arguments:
   IF_TYPE := { linux }          Interface type
@@ -244,10 +245,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         -- )
             shift
-            if [[ ${#CTR_MGR_ARGS[@]} -ne 0 ]]; then
-                echo "When using --, use container manager args after it. These args are inavlid for the script ${CTR_MGR_ARGS[*]}" >&2
-                bad_usage
-            fi
             CTR_MGR_ARGS+=("$@")
             shift $#
             ;;
