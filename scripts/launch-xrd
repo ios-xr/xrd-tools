@@ -245,7 +245,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -- )
             shift
-            if [[ $# -eq 0 ]]; then
+            if [[ $# == 0 ]]; then
                 echo "Invalid syntax: No args after --." >&2
                 bad_usage
             fi
