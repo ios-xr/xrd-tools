@@ -245,8 +245,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         -- )
             shift
+            if [[ $# -eq 0 ]]; then
+                echo "Invalid syntax: No args after --." >&2
+                bad_usage
+            fi
             CTR_MGR_ARGS+=("$@")
-            shift $#
+            break
             ;;
         *)
             CTR_MGR_ARGS+=("$1")
