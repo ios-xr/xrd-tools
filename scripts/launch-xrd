@@ -246,7 +246,7 @@ while [[ $# -gt 0 ]]; do
         -- )
             shift
             if [[ $# == 0 ]]; then
-                echo "Invalid syntax: No args after --." >&2
+                echo "Error: Expected at least one arg after the '--' separator." >&2
                 bad_usage
             fi
             CTR_MGR_ARGS+=("$@")
