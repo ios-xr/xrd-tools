@@ -73,9 +73,11 @@ Optional arguments:
                                 being printed to the console, one of: ERROR,
                                 WARNING (default), INFO, DEBUG
   [--] <arg1> <arg2>            Extra arguments to pass to '<ctr_mgr> run'.
-                                'launch-xrd <arg1> IMG' or 'launch-xrd --
-                                <arg1> IMG' would become '<ctr_mgr> run <arg1>
-                                IMG'
+                                All unrecognised args and all args after '--'
+                                separator will be passed to the container
+                                manager 'launch-xrd <arg1> IMG' or 'launch-xrd
+                                -- <arg1> IMG' would become '<ctr_mgr> run
+                                <arg1> IMG'
 
 XRd Control Plane arguments:
   IF_TYPE := { linux }          Interface type
