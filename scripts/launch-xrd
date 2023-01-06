@@ -75,7 +75,7 @@ Optional arguments:
   [--] <arg1> <arg2>            Extra arguments to pass to '<ctr_mgr> run'.
                                 All unrecognised args and all args after '--'
                                 separator will be passed to the container
-                                manager 'launch-xrd <arg1> IMG' or 'launch-xrd
+                                manager. 'launch-xrd <arg1> IMG' or 'launch-xrd
                                 -- <arg1> IMG' would become '<ctr_mgr> run
                                 <arg1> IMG'
 
