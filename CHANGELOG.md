@@ -12,9 +12,15 @@ Changes added to the preview for 7.9.1.
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
+### v1.1.2 (2023-01-06)
+
+- In the `launch-xrd` script the mechanism for passing extra args to the container manager has been updated. Args after '--' separator will be passed to the container manager as well. To clarify, this is in addition to the existing mechanism of unrecognised arguments (before the '--' separator) being passed to the container manager. This will facilitate passing args common to the script and the container manager.
+
+
 ### v1.1.1 (2022-12-05)
 
 - In the `launch-xrd` script the mechanism for passing extra args to the container manager has changed. The `--args` argument is no longer required - every unrecognised argument will be passed to the container manager. The container image must now be passed as the last argument to the script. The `--args` method is still supported for backwards compatibility, but will be removed in the future.
+
 
 ### v1.1.0 (2022-12-02)
 
