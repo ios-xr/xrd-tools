@@ -1627,7 +1627,7 @@ class XRCompose:
             # AppArmor and SELinux are not supported with the default docker
             # profiles.
             service_yaml.setdefault("security_opt", []).extend(
-                ["apparmor:unconfined", "label:disable"]
+                ["apparmor=unconfined", "label=disable"]
             )
             service_yaml.setdefault("devices", []).extend(
                 ["/dev/fuse", "/dev/net/tun"]
@@ -1753,6 +1753,7 @@ class XRCompose:
                 self.add_mounts(service)
 
             service_yaml = self.yaml["services"][service.service_name]
+            service_yaml["pids_limit"] = -1
             if "image" not in service_yaml:
                 if self.image is None:
                     raise MissingImageError(service.service_name)
