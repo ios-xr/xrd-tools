@@ -1091,7 +1091,9 @@ def check_docker_compose() -> CheckFuncReturn:
     """Check that the docker-compose version is 1.18.x or higher."""
     cmd = "docker-compose --version"
     try:
-        version_str = run_cmd(shlex.split(cmd))[0].strip()
+        # Use a longer than default timeout as this command has been known to
+        # time out.
+        version_str = run_cmd(shlex.split(cmd), timeout=10)[0].strip()
     except (FileNotFoundError, subprocess.SubprocessError):
         return (
             CheckState.FAILED,
