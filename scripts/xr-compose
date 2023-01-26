@@ -1596,12 +1596,7 @@ class XRCompose:
         )
         service_yaml = self.yaml["services"][service.service_name]
 
-        container_priv = (
-            service_yaml["privileged"]
-            if "privileged" in service_yaml.keys()
-            else self.privileged
-        )
-        if container_priv:
+        if service_yaml.get("privileged", self.privileged):
             service_yaml["privileged"] = True
         else:
             service_yaml["cap_drop"] = ["all"]
