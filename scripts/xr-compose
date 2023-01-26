@@ -1798,6 +1798,7 @@ class XRCompose:
             if network.generated:
                 self.yaml["networks"][network.name]["name"] = network.name
                 self.yaml["networks"][network.name]["internal"] = True
+                self.yaml["networks"][network.name]["driver_opts"]["com.docker.network.driver.mtu"] = 9000
 
     def generate(self) -> None:
         """
