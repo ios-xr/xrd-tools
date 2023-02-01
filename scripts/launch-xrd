@@ -135,9 +135,17 @@ _runcmd() {
 #   Arg 1: image name
 _get_platform() {
     local platform
-    platform="$($CONTAINER_EXE inspect "$1" \
-        --format='{{index .Config.Labels "com.cisco.ios-xr.platform"}}' \
-        2>/dev/null)" || true
+
+    check_img=("$CONTAINER_EXE" "inspect" "$1" \
+            "--format={{index .Config.Labels \"com.cisco.ios-xr.platform\"}}")
+
+    if ! platform=$("${check_img[@]}" 2>/dev/null); then
+        "$CONTAINER_EXE" "pull" "$1"
+    fi
+    if [[ ! $platform ]] && ! platform=$("${check_img[@]}" 2>/dev/null); then
+        echo "Error: '$1' has not been loaded to $CONTAINER_EXE." >&2
+        exit 1
+    fi
     # Assert that the container image has the word "xrd" in it.
     if [[ $platform != *xrd* ]]; then
         echo "Error: Could not determine platform from image '$1' labels." >&2
@@ -272,12 +280,8 @@ fi
 # Validate arguments.
 # -----------------------------------------------------------------------------
 
-# Set the container manager.
-if [[ $CONTAINER_EXE =~ "docker" ]]; then
-    CONTAINER_MGR="docker"
-elif [[ $CONTAINER_EXE =~ "podman" ]]; then
-    CONTAINER_MGR="podman"
-else
+# Check the container exe.
+if [[ ! $CONTAINER_EXE =~ "docker" ]] && [[ ! $CONTAINER_EXE =~ "podman" ]]; then
     echo "Error: Unknown container manager '$CONTAINER_EXE', expected to find 'docker' or 'podman' in the name." >&2
     bad_usage
 fi
@@ -413,7 +417,7 @@ else
         # know the major device num to pass as e.g.
         # --device-cgroup-rule 'c 244:* rwm' (where the number can vary on
         # different hosts).
-        if [[ $CONTAINER_MGR == docker ]]; then
+        if [[ $CONTAINER_EXE =~ "docker" ]]; then
             misc_args+=(
                 # Allow XRd vRouter to create character devices for handling
                 # packets.
@@ -424,7 +428,7 @@ else
 fi
 
 # Podman args wanted regardless of running in privileged.
-if [[ $CONTAINER_MGR == podman ]]; then
+if [[ $CONTAINER_EXE =~ "podman" ]]; then
     misc_args+=(
         # Podman's default pid limit is too low so set to unlimited.
         "--pids-limit" "0"
