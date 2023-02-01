@@ -140,11 +140,12 @@ _get_platform() {
             "--format={{index .Config.Labels \"com.cisco.ios-xr.platform\"}}")
 
     if ! platform=$("${check_img[@]}" 2>/dev/null); then
-        "$CONTAINER_EXE" "pull" "$1"
-    fi
-    if [[ ! $platform ]] && ! platform=$("${check_img[@]}" 2>/dev/null); then
-        echo "Error: '$1' has not been loaded to $CONTAINER_EXE." >&2
-        exit 1
+        if "$CONTAINER_EXE" "pull" "$1" &>/dev/null; then
+            platform=$("${check_img[@]}" 2>/dev/null)
+        else
+            echo "Unrecognised image: '$1' has not been loaded to $CONTAINER_EXE." >&2
+            exit 1
+        fi
     fi
     # Assert that the container image has the word "xrd" in it.
     if [[ $platform != *xrd* ]]; then
