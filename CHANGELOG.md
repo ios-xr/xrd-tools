@@ -5,11 +5,16 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
-### v1.1.3 (2023-02-02)
+### v1.1.4 (2023-02-02)
 
 Updates for xr-compose handling of MTUs.
 - Set the MTU of generated networks to 9000 to handle any XR MTU (up to the XR maximum of 9000).
 - Pass through driver_opts from the networks in the input yaml to the output.
+
+### v1.1.3 (2023-01-26)
+
+- `xr-compose` script will now respect the privilege status of a container in the input file.
+
 
 ### v1.1.2 (2023-01-06)
 

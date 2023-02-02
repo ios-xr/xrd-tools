@@ -1596,7 +1596,7 @@ class XRCompose:
         )
         service_yaml = self.yaml["services"][service.service_name]
 
-        if self.privileged:
+        if service_yaml.get("privileged", self.privileged):
             service_yaml["privileged"] = True
         else:
             service_yaml["cap_drop"] = ["all"]
@@ -1939,7 +1939,10 @@ def parse_input_args(argv: List[str]) -> argparse.Namespace:
         "-d", "--debug", action="store_true", help="Enable debug output"
     )
     parser.add_argument(
-        "--privileged", action="store_true", help="Launch in privileged mode"
+        "--privileged",
+        action="store_true",
+        help="Launch in privileged mode. Privilege status of a container in "
+        "the input yaml wold overwrite this",
     )
 
     return parser.parse_args(argv)
