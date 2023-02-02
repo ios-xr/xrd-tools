@@ -145,7 +145,7 @@ _get_platform() {
             platform=$("${check_img_cmd[@]}" 2>/dev/null)
         else
             echo "Unrecognised image '$1' - should be either an image loaded " \
-                 "in the local $CONTAINER_EXE registry, an image file to be loaded, or an image that can be pulled." >&2
+                 "in the local $CONTAINER_MGR registry, an image file to be loaded, or an image that can be pulled." >&2
             return 1
         fi
     fi
@@ -283,14 +283,12 @@ fi
 # Validate arguments.
 # -----------------------------------------------------------------------------
 
-# Check the container exe.
-if [[ ! $CONTAINER_EXE =~ "docker" ]] && [[ ! $CONTAINER_EXE =~ "podman" ]]; then
-    echo "Error: Unknown container manager '$CONTAINER_EXE', expected to find 'docker' or 'podman' in the name." >&2
-    bad_usage
-fi
-
-# Check the container manager is found.
-if ! "$CONTAINER_EXE" --version &>/dev/null; then
+# Set the container manager.
+if [[ $CONTAINER_EXE =~ "docker" ]]; then
+    CONTAINER_MGR="docker"
+elif [[ $CONTAINER_EXE =~ "podman" ]]; then
+    CONTAINER_MGR="podman"
+else
     echo "Error: Container executable '$CONTAINER_EXE' not found." >&2
     bad_usage
 fi
@@ -420,7 +418,7 @@ else
         # know the major device num to pass as e.g.
         # --device-cgroup-rule 'c 244:* rwm' (where the number can vary on
         # different hosts).
-        if [[ $CONTAINER_EXE =~ "docker" ]]; then
+        if [[ $CONTAINER_MGR == docker ]]; then
             misc_args+=(
                 # Allow XRd vRouter to create character devices for handling
                 # packets.
@@ -431,7 +429,7 @@ else
 fi
 
 # Podman args wanted regardless of running in privileged.
-if [[ $CONTAINER_EXE =~ "podman" ]]; then
+if [[ $CONTAINER_MGR == podman ]]; then
     misc_args+=(
         # Podman's default pid limit is too low so set to unlimited.
         "--pids-limit" "0"
