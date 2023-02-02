@@ -289,6 +289,12 @@ if [[ $CONTAINER_EXE =~ "docker" ]]; then
 elif [[ $CONTAINER_EXE =~ "podman" ]]; then
     CONTAINER_MGR="podman"
 else
+    echo "Error: Unknown container manager '$CONTAINER_EXE', expected to find 'docker' or 'podman' in the name." >&2
+    bad_usage
+fi
+
+# Check the container manager is found.
+if ! "$CONTAINER_EXE" --version &>/dev/null; then
     echo "Error: Container executable '$CONTAINER_EXE' not found." >&2
     bad_usage
 fi
