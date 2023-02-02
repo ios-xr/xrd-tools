@@ -136,15 +136,17 @@ _runcmd() {
 _get_platform() {
     local platform
 
-    check_img=("$CONTAINER_EXE" "inspect" "$1" \
+    check_img_cmd=("$CONTAINER_EXE" "inspect" "$1" \
             "--format={{index .Config.Labels \"com.cisco.ios-xr.platform\"}}")
 
-    if ! platform=$("${check_img[@]}" 2>/dev/null); then
-        if "$CONTAINER_EXE" "pull" "$1" &>/dev/null; then
-            platform=$("${check_img[@]}" 2>/dev/null)
+    if ! platform=$("${check_img_cmd[@]}" 2>/dev/null); then
+        echo "Specified image is not loaded or a file path, attempting to pull..." >&2
+        if "$CONTAINER_EXE" pull "$1" >&2; then
+            platform=$("${check_img_cmd[@]}" 2>/dev/null)
         else
-            echo "Unrecognised image: '$1' has not been loaded to $CONTAINER_EXE." >&2
-            exit 1
+            echo "Unrecognised image '$1' - should be either an image loaded " \
+                 "in the local $CONTAINER_EXE registry, an image file to be loaded, or an image that can be pulled." >&2
+            return 1
         fi
     fi
     # Assert that the container image has the word "xrd" in it.
