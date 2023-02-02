@@ -5,6 +5,12 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
+### v1.1.3 (2023-02-02)
+
+Updates for xr-compose handling of MTUs.
+- Set the MTU of generated networks to 9000 to handle any XR MTU (up to the XR maximum of 9000).
+- Pass through driver_opts from the networks in the input yaml to the output.
+
 ### v1.1.2 (2023-01-06)
 
 - In the `launch-xrd` script the mechanism for passing extra args to the container manager has been updated. Args after '--' separator will be passed to the container manager as well. To clarify, this is in addition to the existing mechanism of unrecognised arguments (before the '--' separator) being passed to the container manager. This will facilitate passing args common to the script and the container manager.
