@@ -5,6 +5,12 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
+### v1.1.4 (2023-02-02)
+
+- When specifying `-i` in the `launch-xrd` script, users can now pass an image to be pulled from a repo.
+- `launch-xrd` script will now give better error messages when an unrecognized image is passed.
+
+
 ### v1.1.3 (2023-01-26)
 
 - `xr-compose` script will now respect the privilege status of a container in the input file.
