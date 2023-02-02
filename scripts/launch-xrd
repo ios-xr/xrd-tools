@@ -141,9 +141,7 @@ _get_platform() {
 
     if ! platform=$("${check_img_cmd[@]}" 2>/dev/null); then
         echo "Specified image is not loaded in the local registry, attempting to pull..." >&2
-        if "$CONTAINER_EXE" pull "$1" >&2; then
-            platform=$("${check_img_cmd[@]}" 2>/dev/null)
-        else
+        if ! "$CONTAINER_EXE" pull "$1" >&2 || ! platform=$("${check_img_cmd[@]}" 2>/dev/null); then
             echo "Unrecognised image '$1' - should be either an image loaded " \
                  "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
             return 1
@@ -300,10 +298,8 @@ if ! "$CONTAINER_EXE" --version &>/dev/null; then
 fi
 
 # Obtain the platform from the chosen image.
-if [[ $PLATFORM == "" ]]; then
-    if ! PLATFORM="$(_get_platform "$IMAGE")"; then
-        bad_usage
-    fi
+if [[ ! $PLATFORM ]]; then
+    PLATFORM=$(_get_platform "$IMAGE") || exit 1
 fi
 
 # Validate based on XRd platform.
