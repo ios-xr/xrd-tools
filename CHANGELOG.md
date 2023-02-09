@@ -5,7 +5,7 @@
 
 Changes added to the preview for 7.9.1.
 
-- Add check to ensure real-time group scheduling is disabled on the host
+- Add check to ensure real-time group scheduling is disabled on the host for XRd vRouter.
 
 
 ## v1 (active)
