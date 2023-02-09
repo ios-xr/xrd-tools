@@ -1,4 +1,4 @@
-# Copyright 2021-2022 Cisco Systems Inc.
+# Copyright 2021-2023 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -222,7 +222,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
@@ -371,7 +371,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==============================
 Extra checks
@@ -408,7 +408,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==============================
 Extra checks
@@ -447,7 +447,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==============================
 Extra checks
@@ -510,7 +510,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==================================================================
 !! Host NOT set up correctly for any XR platforms !!
@@ -539,7 +539,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==================================================================
 XR platforms supported: xrd-control-plane
@@ -569,7 +569,7 @@ Checks: RAM
 
 xrd-vrouter checks
 -----------------------
-Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
 ==============================
 Extra checks
@@ -1351,7 +1351,7 @@ class TestLSMs(_CheckTestBase):
 class TestRealtimeGroupSched(_CheckTestBase):
     """Tests for Real-time Group Scheduling disabled check"""
 
-    check_group = "base"
+    check_group = "xrd-vrouter"
     check_name = "Real-time Group Scheduling"
     deps = ["Cgroups"]
     files = ["/proc/sys/kernel/sched_rt_runtime_us"]

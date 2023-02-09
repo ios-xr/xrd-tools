@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2020-2022 Cisco Systems Inc.
+# Copyright 2020-2023 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1243,9 +1243,6 @@ BASE_CHECKS = [
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
-    Check(
-        "Real-time Group Scheduling", check_realtime_group_sched, ["Cgroups"]
-    ),
 ]
 
 CONTROL_PLANE_CHECKS = [
@@ -1263,6 +1260,7 @@ VROUTER_CHECKS = [
     Check("Interface kernel driver", check_interface_kernel_driver, []),
     Check("IOMMU", check_iommu, ["Interface kernel driver"]),
     Check("Shared memory pages max size", check_shmem_pages_max_size, []),
+    Check("Real-time Group Scheduling", check_realtime_group_sched, []),
 ]
 
 DOCKER_CHECKS = [
