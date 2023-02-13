@@ -134,9 +134,9 @@ _runcmd() {
 # Pulls an image if not pulled already. Return code 1 if image is unavilable
 #   Arg 1: image name
 _pull_image() {
-if ! "$CONTAINER_EXE" pull "$1" >&2 || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
+if ! "$CONTAINER_EXE" pull "$1" || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
     echo "Unrecognised image '$1' - should be either an image loaded " \
-         "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
+         "in the local $CONTAINER_MGR registry or an image that can be pulled."
     return 1
 fi
 }
