@@ -131,7 +131,7 @@ _runcmd() {
     fi
 }
 
-# Pulls an image if not pulled already. Return code 1 if image is unavilable
+# Pulls an image if not loaded already. Return code 1 if image is unavilable
 #   Arg 1: image name
 _pull_image() {
     if ! "$CONTAINER_EXE" pull "$1" || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
