@@ -145,7 +145,6 @@ fi
 #   Arg 1: image name
 _get_platform() {
     local platform
-
     platform="$($CONTAINER_EXE inspect "$1" \
         --format='{{index .Config.Labels "com.cisco.ios-xr.platform"}}' \
         2>/dev/null)" || true
