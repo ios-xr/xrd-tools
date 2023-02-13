@@ -131,24 +131,24 @@ _runcmd() {
     fi
 }
 
+# Pulls an image if not pulled already. Return code 1 if image is unavilable
+#   Arg 1: image name
+_pull_image() {
+if ! "$CONTAINER_EXE" pull "$1" >&2 || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
+    echo "Unrecognised image '$1' - should be either an image loaded " \
+         "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
+    return 1
+fi
+}
+
 # Get the platform from the labels on a container image.
 #   Arg 1: image name
 _get_platform() {
     local platform
 
-    check_img_cmd=("$CONTAINER_EXE" "inspect" "$1" \
-            "--format={{index .Config.Labels \"com.cisco.ios-xr.platform\"}}")
-
-    if ! platform=$("${check_img_cmd[@]}" 2>/dev/null); then
-        echo "Specified image is not loaded in the local registry, attempting to pull..." >&2
-        if "$CONTAINER_EXE" pull "$1" >&2; then
-            platform=$("${check_img_cmd[@]}" 2>/dev/null)
-        else
-            echo "Unrecognised image '$1' - should be either an image loaded " \
-                 "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
-            return 1
-        fi
-    fi
+    platform="$($CONTAINER_EXE inspect "$1" \
+        --format='{{index .Config.Labels "com.cisco.ios-xr.platform"}}' \
+        2>/dev/null)" || true
     # Assert that the container image has the word "xrd" in it.
     if [[ $platform != *xrd* ]]; then
         echo "Error: Could not determine platform from image '$1' labels." >&2
@@ -301,7 +301,10 @@ fi
 
 # Obtain the platform from the chosen image.
 if [[ ! $PLATFORM ]]; then
-    PLATFORM=$(_get_platform "$IMAGE") || exit 1
+    if ! $CONTAINER_EXE inspect "$IMAGE" &>/dev/null; then
+        _pull_image "$IMAGE" || exit 1
+    fi
+    PLATFORM="$(_get_platform "$IMAGE")" || exit 1
 fi
 
 # Validate based on XRd platform.
