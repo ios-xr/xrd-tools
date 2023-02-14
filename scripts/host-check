@@ -1301,11 +1301,11 @@ BASE_CHECKS = [
         functools.partial(check_inotify_limits, "max_user_watches"),
         [],
     ),
+    Check("Socket kernel parameters", check_socket_parameters, []),
+    Check("UDP kernel parameters", check_udp_parameters, []),
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
-    Check("Socket kernel parameters", check_socket_parameters, []),
-    Check("UDP kernel parameters", check_udp_parameters, []),
 ]
 
 CONTROL_PLANE_CHECKS = [
