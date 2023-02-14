@@ -104,6 +104,8 @@ disable=
   # We should be free to choose str.format() v. f"{}"
   consider-using-f-string,
 
+  # We should be allowed to use 'dict()' vs '{}'
+  use-dict-literal
 
 [REPORTS]
 
