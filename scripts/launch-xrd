@@ -134,9 +134,9 @@ _runcmd() {
 # Pulls an image if not loaded already. Return code 1 if image is unavilable
 #   Arg 1: image name
 _pull_image() {
-    if ! "$CONTAINER_EXE" pull "$1" || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
+    if ! "$CONTAINER_EXE" pull "$1" >&2 || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
         echo "Unrecognised image '$1' - should be either an image loaded " \
-            "in the local $CONTAINER_MGR registry or an image that can be pulled."
+            "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
         return 1
     fi
 }
@@ -301,7 +301,7 @@ fi
 # Obtain the platform from the chosen image.
 if [[ ! $PLATFORM ]]; then
     if ! $CONTAINER_EXE inspect "$IMAGE" &>/dev/null; then
-        echo "Specified image is not loaded, attempting to pull..."
+        echo "Specified image is not loaded, attempting to pull..." >&2
         _pull_image "$IMAGE" || exit 1
     fi
     PLATFORM="$(_get_platform "$IMAGE")" || exit 1
