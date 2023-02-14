@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2020-2022 Cisco Systems Inc.
+# Copyright 2020-2023 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -610,7 +610,7 @@ def check_socket_parameters() -> CheckFuncReturn:
     }
     host_params = {}
     bad_values = False
-    for param in required_params:
+    for param, required_value in required_params.items():
         base_path = "/proc/sys/net/core"
         path = f"{base_path}/{param}"
         try:
@@ -624,7 +624,7 @@ def check_socket_parameters() -> CheckFuncReturn:
 
         host_params[param] = val
 
-        if val < required_params[param]:
+        if val < required_value:
             bad_values = True
 
     if bad_values:

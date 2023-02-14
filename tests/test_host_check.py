@@ -1,4 +1,4 @@
-# Copyright 2021-2022 Cisco Systems Inc.
+# Copyright 2021-2023 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1359,7 +1359,7 @@ class TestSocketParameters(_CheckTestBase):
         "/proc/sys/net/core/rmem_default",
         "/proc/sys/net/core/rmem_max",
         "/proc/sys/net/core/wmem_default",
-        "/proc/sys/net/core/wmem_max"
+        "/proc/sys/net/core/wmem_max",
     ]
 
     def test_matching_values(self, capsys):
@@ -1370,9 +1370,11 @@ class TestSocketParameters(_CheckTestBase):
             "67108864",
             "67108864",
             "67108864",
-            "67108864"
+            "67108864",
         ]
-        success, output = self.perform_check(capsys, read_effects=minimum_values)
+        success, output = self.perform_check(
+            capsys, read_effects=minimum_values
+        )
         assert output == "PASS -- Socket kernel parameters (valid settings)\n"
         assert success
 
@@ -1384,9 +1386,11 @@ class TestSocketParameters(_CheckTestBase):
             "67108874",
             "67108964",
             "67109864",
-            "67118864"
+            "67118864",
         ]
-        success, output = self.perform_check(capsys, read_effects=higher_values)
+        success, output = self.perform_check(
+            capsys, read_effects=higher_values
+        )
         assert output == "PASS -- Socket kernel parameters (valid settings)\n"
         assert success
 
@@ -1398,7 +1402,7 @@ class TestSocketParameters(_CheckTestBase):
             "212992",
             "212992",
             "212992",
-            "212992"
+            "212992",
         ]
         success, output = self.perform_check(capsys, read_effects=lower_values)
         assert output == textwrap.dedent(
@@ -1458,28 +1462,30 @@ class TestUDPParameters(_CheckTestBase):
 
     check_group = "base"
     check_name = "UDP kernel parameters"
-    files = [
-        "/proc/sys/net/ipv4/udp_mem"
-    ]
+    files = ["/proc/sys/net/ipv4/udp_mem"]
 
     def test_matching_values(self, capsys):
         """Test when all values precisely match, the check passes."""
-        success, output = self.perform_check(capsys,
-                                             read_effects="1124736 10000000 67108864")
+        success, output = self.perform_check(
+            capsys, read_effects="1124736 10000000 67108864"
+        )
         assert output == "PASS -- UDP kernel parameters (valid settings)\n"
         assert success
 
     def test_higher_values(self, capsys):
         """Test when values are higher, the check passes."""
-        success, output = self.perform_check(capsys,
-                                             read_effects="1124737 20000000 67108868")
+        success, output = self.perform_check(
+            capsys, read_effects="1124737 20000000 67108868"
+        )
         assert output == "PASS -- UDP kernel parameters (valid settings)\n"
         assert success
 
     def test_lower_values(self, capsys):
         """Test when values are lower, the check warns."""
 
-        success, output = self.perform_check(capsys, read_effects="767055 1022741 1534110")
+        success, output = self.perform_check(
+            capsys, read_effects="767055 1022741 1534110"
+        )
         assert output == textwrap.dedent(
             f"""\
             WARN -- UDP kernel parameters
@@ -1502,7 +1508,9 @@ class TestUDPParameters(_CheckTestBase):
         )
         assert not success
 
-        success, output = self.perform_check(capsys, read_effects="1124736 1022741 1534110")
+        success, output = self.perform_check(
+            capsys, read_effects="1124736 1022741 1534110"
+        )
         assert output == textwrap.dedent(
             f"""\
             WARN -- UDP kernel parameters
@@ -1525,7 +1533,9 @@ class TestUDPParameters(_CheckTestBase):
         )
         assert not success
 
-        success, output = self.perform_check(capsys, read_effects="1124736 10000000 1534110")
+        success, output = self.perform_check(
+            capsys, read_effects="1124736 10000000 1534110"
+        )
         assert output == textwrap.dedent(
             f"""\
             WARN -- UDP kernel parameters
