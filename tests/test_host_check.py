@@ -1496,11 +1496,11 @@ class TestUDPParameters(_CheckTestBase):
                     particularly at higher scale.
 
                     The required minimum settings are:
-                        net.ipv4.udp_mem='1124736 10000000 67108864'
+                        net.ipv4.udp_mem=1124736 10000000 67108864
                     The current host settings are:
-                        net.ipv4.udp_mem='767055 1022741 1534110'
+                        net.ipv4.udp_mem=767055 1022741 1534110
                     Values can be changed by adding
-                    "net.ipv4.udp_mem='1124736 10000000 67108864'" to /etc/sysctl.conf or
+                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
                     in a dedicated conf file under /etc/sysctl.d/.
                     Or for a temporary fix, running:
                       sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
@@ -1521,11 +1521,11 @@ class TestUDPParameters(_CheckTestBase):
                     particularly at higher scale.
 
                     The required minimum settings are:
-                        net.ipv4.udp_mem='1124736 10000000 67108864'
+                        net.ipv4.udp_mem=1124736 10000000 67108864
                     The current host settings are:
-                        net.ipv4.udp_mem='1124736 1022741 1534110'
+                        net.ipv4.udp_mem=1124736 1022741 1534110
                     Values can be changed by adding
-                    "net.ipv4.udp_mem='1124736 10000000 67108864'" to /etc/sysctl.conf or
+                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
                     in a dedicated conf file under /etc/sysctl.d/.
                     Or for a temporary fix, running:
                       sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
@@ -1546,11 +1546,11 @@ class TestUDPParameters(_CheckTestBase):
                     particularly at higher scale.
 
                     The required minimum settings are:
-                        net.ipv4.udp_mem='1124736 10000000 67108864'
+                        net.ipv4.udp_mem=1124736 10000000 67108864
                     The current host settings are:
-                        net.ipv4.udp_mem='1124736 10000000 1534110'
+                        net.ipv4.udp_mem=1124736 10000000 1534110
                     Values can be changed by adding
-                    "net.ipv4.udp_mem='1124736 10000000 67108864'" to /etc/sysctl.conf or
+                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
                     in a dedicated conf file under /etc/sysctl.d/.
                     Or for a temporary fix, running:
                       sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
