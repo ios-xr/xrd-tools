@@ -598,6 +598,111 @@ def check_linux_security_modules() -> CheckFuncReturn:
     return ch_state, "\n".join(msgs)
 
 
+def check_socket_parameters() -> CheckFuncReturn:
+    """Check that socket kernel parameters are set high enough"""
+    required_params = {
+        "netdev_max_backlog": 300000,
+        "optmem_max": 67108864,
+        "rmem_default": 67108864,
+        "rmem_max": 67108864,
+        "wmem_default": 67108864,
+        "wmem_max": 67108864,
+    }
+    host_params = {}
+    bad_values = False
+    for param in required_params:
+        base_path = "/proc/sys/net/core"
+        path = f"{base_path}/{param}"
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                val = int(f.read().strip())
+        except Exception:
+            return (
+                CheckState.WARNING,
+                f"Failed to read socket kernel parameter {path}.",
+            )
+
+        host_params[param] = val
+
+        if val < required_params[param]:
+            bad_values = True
+
+    if bad_values:
+        required_values_str = ""
+        host_values_str = ""
+        for param in sorted(required_params):
+            required_values_str += (
+                f"    net.core.{param}={required_params[param]}\n"
+            )
+            host_values_str += f"    net.core.{param}={host_params[param]}\n"
+        return (
+            CheckState.WARNING,
+            f"The kernel socket parameters are insufficient for running XRd in a\n"
+            f"production deployment. They may be used in a lab deployment, but must\n"
+            f"be increased to the required minimums for production deployment.\n"
+            f"Lower values may result at XR IPC loss and unpredictable behavior,\n"
+            f"particularly at higher scale.\n"
+            f"\n"
+            f"The required minimum settings are:\n"
+            f"{required_values_str}\n"
+            f"The current host settings are:\n"
+            f"{host_values_str}\n"
+            f"Values can be changed by adding e.g.\n"
+            f"'net.core.rmem_default=67108864' to /etc/sysctl.conf or\n"
+            f"in a dedicated conf file under /etc/sysctl.d/.\n"
+            f"Or for a temporary fix, running e.g.:\n"
+            f"  sysctl -w net.core.rmem_default=67108864",
+        )
+
+    return CheckState.SUCCESS, "valid settings"
+
+
+def check_udp_parameters() -> CheckFuncReturn:
+    """Check that socket UDP parameters are set high enough"""
+
+    path = "/proc/sys/net/ipv4/udp_mem"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            val = f.read().strip().split()
+    except Exception:
+        return (
+            CheckState.WARNING,
+            f"Failed to read UDP kernel parameter {path}.",
+        )
+
+    # Values must be at least '1124736 10000000 67108864'
+
+    bad_value = False
+    if int(val[0]) < 1124736:
+        bad_value = True
+    elif int(val[1]) < 10000000:
+        bad_value = True
+    elif int(val[2]) < 67108864:
+        bad_value = True
+
+    if bad_value:
+        return (
+            CheckState.WARNING,
+            f"The kernel UDP parameters are insufficient for running XRd in a\n"
+            f"production deployment. They may be used in a lab deployment, but must\n"
+            f"be increased to the required minimums for production deployment.\n"
+            f"Lower values may result at XR IPC loss and unpredictable behavior,\n"
+            f"particularly at higher scale.\n"
+            f"\n"
+            f"The required minimum settings are:\n"
+            f"    net.ipv4.udp_mem='1124736 10000000 67108864'\n"
+            f"The current host settings are:\n"
+            f"    net.ipv4.udp_mem='{val[0]} {val[1]} {val[2]}'\n"
+            f"Values can be changed by adding\n"
+            f"\"net.ipv4.udp_mem='1124736 10000000 67108864'\" to /etc/sysctl.conf or\n"
+            f"in a dedicated conf file under /etc/sysctl.d/.\n"
+            f"Or for a temporary fix, running:\n"
+            f"  sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'",
+        )
+
+    return CheckState.SUCCESS, "valid settings"
+
+
 # -------------------------------------
 # Platform checks
 # -------------------------------------
@@ -1199,6 +1304,8 @@ BASE_CHECKS = [
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
+    Check("Socket kernel parameters", check_socket_parameters, []),
+    Check("UDP kernel parameters", check_udp_parameters, []),
 ]
 
 CONTROL_PLANE_CHECKS = [
