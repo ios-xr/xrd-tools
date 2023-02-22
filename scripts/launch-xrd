@@ -149,7 +149,7 @@ _get_platform() {
         --format='{{index .Config.Labels "com.cisco.ios-xr.platform"}}' \
         2>/dev/null)"; then
         # This should never be hit.
-        echo "Image $1 has not be loaded in the local $CONTAINER_MGR registry." >&2
+        echo "Image $1 cannot be found in the local $CONTAINER_MGR registry." >&2
         return 1
     fi
     # Assert that the container image has the word "xrd" in it.
