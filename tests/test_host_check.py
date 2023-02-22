@@ -1411,7 +1411,7 @@ class TestSocketParameters(_CheckTestBase):
                     The kernel socket parameters are insufficient for running XRd in a
                     production deployment. They may be used in a lab deployment, but must
                     be increased to the required minimums for production deployment.
-                    Lower values may result at XR IPC loss and unpredictable behavior,
+                    Lower values may result in XR IPC loss and unpredictable behavior,
                     particularly at higher scale.
 
                     The required minimum settings are:
@@ -1492,7 +1492,7 @@ class TestUDPParameters(_CheckTestBase):
                     The kernel UDP parameters are insufficient for running XRd in a
                     production deployment. They may be used in a lab deployment, but must
                     be increased to the required minimums for production deployment.
-                    Lower values may result at XR IPC loss and unpredictable behavior,
+                    Lower values may result in XR IPC loss and unpredictable behavior,
                     particularly at higher scale.
 
                     The required minimum settings are:
@@ -1517,7 +1517,7 @@ class TestUDPParameters(_CheckTestBase):
                     The kernel UDP parameters are insufficient for running XRd in a
                     production deployment. They may be used in a lab deployment, but must
                     be increased to the required minimums for production deployment.
-                    Lower values may result at XR IPC loss and unpredictable behavior,
+                    Lower values may result in XR IPC loss and unpredictable behavior,
                     particularly at higher scale.
 
                     The required minimum settings are:
@@ -1542,7 +1542,7 @@ class TestUDPParameters(_CheckTestBase):
                     The kernel UDP parameters are insufficient for running XRd in a
                     production deployment. They may be used in a lab deployment, but must
                     be increased to the required minimums for production deployment.
-                    Lower values may result at XR IPC loss and unpredictable behavior,
+                    Lower values may result in XR IPC loss and unpredictable behavior,
                     particularly at higher scale.
 
                     The required minimum settings are:
