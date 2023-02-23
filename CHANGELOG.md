@@ -12,6 +12,11 @@ Changes added to the preview for 7.9.1.
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
+### v1.1.6 (2023-02-22)
+
+- Add checks for correct socket kernel parameters to `host-check`.
+
+
 ### v1.1.5 (2023-02-13)
 
 - When specifying `IMG` in the `launch-xrd` script, users can now pass an image to be pulled from a repo.
