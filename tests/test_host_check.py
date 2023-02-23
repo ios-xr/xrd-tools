@@ -1353,7 +1353,6 @@ class TestRealtimeGroupSched(_CheckTestBase):
 
     check_group = "xrd-vrouter"
     check_name = "Real-time Group Scheduling"
-    deps = ["Cgroups"]
     files = ["/proc/sys/kernel/sched_rt_runtime_us"]
 
     def test_v1_disabled_in_kernel_config(self, capsys):
@@ -1468,6 +1467,228 @@ class TestRealtimeGroupSched(_CheckTestBase):
                     file under /etc/sysctl.d/.
                     For a temporary fix, run:
                       sysctl -w kernel.sched_rt_runtime_us=-1
+            """
+        )
+        assert not success
+
+
+class TestSocketParameters(_CheckTestBase):
+    """Tests for Socket Kernel Parameters check."""
+
+    check_group = "base"
+    check_name = "Socket kernel parameters"
+    files = [
+        "/proc/sys/net/core/netdev_max_backlog",
+        "/proc/sys/net/core/optmem_max",
+        "/proc/sys/net/core/rmem_default",
+        "/proc/sys/net/core/rmem_max",
+        "/proc/sys/net/core/wmem_default",
+        "/proc/sys/net/core/wmem_max",
+    ]
+
+    def test_matching_values(self, capsys):
+        """Test when all values precisely match, the check passes."""
+        minimum_values = [
+            "300000",
+            "67108864",
+            "67108864",
+            "67108864",
+            "67108864",
+            "67108864",
+        ]
+        success, output = self.perform_check(
+            capsys, read_effects=minimum_values
+        )
+        assert output == "PASS -- Socket kernel parameters (valid settings)\n"
+        assert success
+
+    def test_higher_values(self, capsys):
+        """Test when values are higher, the check passes."""
+        higher_values = [
+            "400000",
+            "67108865",
+            "67108874",
+            "67108964",
+            "67109864",
+            "67118864",
+        ]
+        success, output = self.perform_check(
+            capsys, read_effects=higher_values
+        )
+        assert output == "PASS -- Socket kernel parameters (valid settings)\n"
+        assert success
+
+    def test_lower_values(self, capsys):
+        """Test when values are lower, the check warns."""
+        lower_values = [
+            "1000",
+            "20480",
+            "212992",
+            "212992",
+            "212992",
+            "212992",
+        ]
+        success, output = self.perform_check(capsys, read_effects=lower_values)
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- Socket kernel parameters
+                    The kernel socket parameters are insufficient for running XRd in a
+                    production deployment. They may be used in a lab deployment, but must
+                    be increased to the required minimums for production deployment.
+                    Lower values may result in XR IPC loss and unpredictable behavior,
+                    particularly at higher scale.
+
+                    The required minimum settings are:
+                        net.core.netdev_max_backlog=300000
+                        net.core.optmem_max=67108864
+                        net.core.rmem_default=67108864
+                        net.core.rmem_max=67108864
+                        net.core.wmem_default=67108864
+                        net.core.wmem_max=67108864
+
+                    The current host settings are:
+                        net.core.netdev_max_backlog=1000
+                        net.core.optmem_max=20480
+                        net.core.rmem_default=212992
+                        net.core.rmem_max=212992
+                        net.core.wmem_default=212992
+                        net.core.wmem_max=212992
+
+                    Values can be changed by adding e.g.
+                    'net.core.rmem_default=67108864' to /etc/sysctl.conf or
+                    in a dedicated conf file under /etc/sysctl.d/.
+                    Or for a temporary fix, running e.g.:
+                      sysctl -w net.core.rmem_default=67108864
+            """
+        )
+        assert not success
+
+    def test_read_failure(self, capsys):
+        """Test read failure on socket parameter"""
+        error_values = [
+            "300000",
+            "67108864",
+            "67108864",
+            Exception,
+        ]
+        success, output = self.perform_check(capsys, read_effects=error_values)
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- Socket kernel parameters
+                    Failed to read socket kernel parameter /proc/sys/net/core/rmem_max.
+            """
+        )
+        assert not success
+
+
+class TestUDPParameters(_CheckTestBase):
+    """Tests for UDP Kernel Parameters check."""
+
+    check_group = "base"
+    check_name = "UDP kernel parameters"
+    files = ["/proc/sys/net/ipv4/udp_mem"]
+
+    def test_matching_values(self, capsys):
+        """Test when all values precisely match, the check passes."""
+        success, output = self.perform_check(
+            capsys, read_effects="1124736 10000000 67108864"
+        )
+        assert output == "PASS -- UDP kernel parameters (valid settings)\n"
+        assert success
+
+    def test_higher_values(self, capsys):
+        """Test when values are higher, the check passes."""
+        success, output = self.perform_check(
+            capsys, read_effects="1124737 20000000 67108868"
+        )
+        assert output == "PASS -- UDP kernel parameters (valid settings)\n"
+        assert success
+
+    def test_lower_values(self, capsys):
+        """Test when values are lower, the check warns."""
+
+        success, output = self.perform_check(
+            capsys, read_effects="767055 1022741 1534110"
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- UDP kernel parameters
+                    The kernel UDP parameters are insufficient for running XRd in a
+                    production deployment. They may be used in a lab deployment, but must
+                    be increased to the required minimums for production deployment.
+                    Lower values may result in XR IPC loss and unpredictable behavior,
+                    particularly at higher scale.
+
+                    The required minimum settings are:
+                        net.ipv4.udp_mem=1124736 10000000 67108864
+                    The current host settings are:
+                        net.ipv4.udp_mem=767055 1022741 1534110
+                    Values can be changed by adding
+                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
+                    in a dedicated conf file under /etc/sysctl.d/.
+                    Or for a temporary fix, running:
+                      sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
+            """
+        )
+        assert not success
+
+        success, output = self.perform_check(
+            capsys, read_effects="1124736 1022741 1534110"
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- UDP kernel parameters
+                    The kernel UDP parameters are insufficient for running XRd in a
+                    production deployment. They may be used in a lab deployment, but must
+                    be increased to the required minimums for production deployment.
+                    Lower values may result in XR IPC loss and unpredictable behavior,
+                    particularly at higher scale.
+
+                    The required minimum settings are:
+                        net.ipv4.udp_mem=1124736 10000000 67108864
+                    The current host settings are:
+                        net.ipv4.udp_mem=1124736 1022741 1534110
+                    Values can be changed by adding
+                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
+                    in a dedicated conf file under /etc/sysctl.d/.
+                    Or for a temporary fix, running:
+                      sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
+            """
+        )
+        assert not success
+
+        success, output = self.perform_check(
+            capsys, read_effects="1124736 10000000 1534110"
+        )
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- UDP kernel parameters
+                    The kernel UDP parameters are insufficient for running XRd in a
+                    production deployment. They may be used in a lab deployment, but must
+                    be increased to the required minimums for production deployment.
+                    Lower values may result in XR IPC loss and unpredictable behavior,
+                    particularly at higher scale.
+
+                    The required minimum settings are:
+                        net.ipv4.udp_mem=1124736 10000000 67108864
+                    The current host settings are:
+                        net.ipv4.udp_mem=1124736 10000000 1534110
+                    Values can be changed by adding
+                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
+                    in a dedicated conf file under /etc/sysctl.d/.
+                    Or for a temporary fix, running:
+                      sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
+            """
+        )
+        assert not success
+
+    def test_read_failure(self, capsys):
+        """Test read failure on socket parameter"""
+        success, output = self.perform_check(capsys, read_effects=Exception)
+        assert output == textwrap.dedent(
+            f"""\
+            WARN -- UDP kernel parameters
+                    Failed to read UDP kernel parameter /proc/sys/net/ipv4/udp_mem.
             """
         )
         assert not success
