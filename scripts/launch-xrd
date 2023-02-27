@@ -134,18 +134,11 @@ _runcmd() {
 # Pulls an image if not loaded already. Return code 1 if image is unavilable
 #   Arg 1: image name
 _pull_image() {
-    if [[ $DRY_RUN == 1 ]]; then
-        echo "The image $1 has not been loaded in the local $CONTAINER_MGR registry" >&2
-        echo "Platform must be specified for dry-run when the image isn't loaded" >&2
-        echo "Use '--platform' argument." >&2
+    echo "Specified image is not loaded, attempting to pull..."
+    if ! "$CONTAINER_EXE" pull "$1" || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
+        echo "Unrecognised image '$1' - should be either an image loaded " \
+            "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
         return 1
-    else
-        echo "Specified image is not loaded, attempting to pull..."
-        if ! "$CONTAINER_EXE" pull "$1" || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
-            echo "Unrecognised image '$1' - should be either an image loaded " \
-                "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
-            return 1
-        fi
     fi
 }
 
@@ -313,7 +306,14 @@ fi
 # Obtain the platform from the chosen image.
 if [[ ! $PLATFORM ]]; then
     if ! $CONTAINER_EXE inspect "$IMAGE" &>/dev/null; then
-        _pull_image "$IMAGE" || exit 1
+        if [[ $DRY_RUN == 1 ]]; then
+            echo "The image $1 is not loaded in the local $CONTAINER_MGR registry." >&2
+            echo "Platform must be specified for dry-run when the image isn't loaded." >&2
+            echo "Use '--platform' argument." >&2
+            exit 1
+        else
+            _pull_image "$IMAGE" || exit 1
+        fi
     fi
     PLATFORM="$(_get_platform "$IMAGE")" || exit 1
 fi
