@@ -1010,10 +1010,6 @@ class TestCgroups(_CheckTestBase):
         "findmnt /sys/fs/cgroup/cpu -t cgroup",
         "findmnt /sys/fs/cgroup/cpuset -t cgroup",
     ]
-    cmds += [
-        f"findmnt /sys/fs/cgroup/{cgrp_dir} -t cgroup"
-        for cgrp_dir in host_check.REQUIRED_CGROUP_MOUNTS
-    ]
 
     @staticmethod
     @pytest.fixture(scope="class", autouse=True)
@@ -1104,7 +1100,7 @@ class TestCgroups(_CheckTestBase):
             FAIL -- Cgroups
                     These cgroup mounts do not exist on the host: systemd.
                     These mounts are required to run XRd.
-                    To add a systemd mount, run:
+                    If your distro doesn't use systemd, manually add the systemd cgroup mount with:
                         sudo mkdir /sys/fs/cgroup/systemd
                         sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
@@ -1153,7 +1149,7 @@ class TestCgroups(_CheckTestBase):
             FAIL -- Cgroups
                     These cgroup mounts do not exist on the host: systemd, cpu.
                     These mounts are required to run XRd.
-                    To add a systemd mount, run:
+                    If your distro doesn't use systemd, manually add the systemd cgroup mount with:
                         sudo mkdir /sys/fs/cgroup/systemd
                         sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """

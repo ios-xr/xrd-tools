@@ -461,15 +461,12 @@ def check_cgroups() -> CheckFuncReturn:
             f"These cgroup mounts do not exist on the host: {', '.join(not_exist_mounts)}."
             "\nThese mounts are required to run XRd."
         )
-        fail_msg += (
-            (
+        if "systemd" in not_exist_mounts:
+            fail_msg += (
                 "\nIf your distro doesn't use systemd, manually add the systemd cgroup mount with:"
                 "\n    sudo mkdir /sys/fs/cgroup/systemd"
                 "\n    sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd"
             )
-            if "systemd" in not_exist_mounts
-            else ""
-        )
         return CheckState.FAILED, fail_msg
     return CheckState.SUCCESS, f"v{version}"
 
