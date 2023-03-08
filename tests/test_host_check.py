@@ -1004,6 +1004,11 @@ class TestCgroups(_CheckTestBase):
     cmds = [
         "findmnt /sys/fs/cgroup -t cgroup2",
         "findmnt /sys/fs/cgroup/memory -t cgroup",
+        "findmnt /sys/fs/cgroup/systemd -t cgroup",
+        "findmnt /sys/fs/cgroup/memory -t cgroup",
+        "findmnt /sys/fs/cgroup/pids -t cgroup",
+        "findmnt /sys/fs/cgroup/cpu -t cgroup",
+        "findmnt /sys/fs/cgroup/cpuset -t cgroup",
     ]
 
     @staticmethod
@@ -1016,7 +1021,15 @@ class TestCgroups(_CheckTestBase):
         """Test the cgroups v1 success case."""
         success, output = self.perform_check(
             capsys,
-            cmd_effects=[mock.Mock(returncode=1), mock.Mock(returncode=0)],
+            cmd_effects=[
+                mock.Mock(returncode=1),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+            ],
         )
         assert output == textwrap.dedent(
             """\
@@ -1064,6 +1077,81 @@ class TestCgroups(_CheckTestBase):
             FAIL -- Cgroups
                     Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
                     contain cgroup v1 mounts.
+            """
+        )
+        assert not success
+
+    def test_systemd_mount_error(self, capsys):
+        """Test case where systemd mount isn't present."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                mock.Mock(returncode=1),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=1),  # /sys/fs/cgroup/systemd
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+            ],
+        )
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Cgroups
+                    These cgroup mounts do not exist on the host: systemd.
+                    These mounts are required to run XRd.
+                    If your distro doesn't use systemd, manually add the systemd cgroup mount with:
+                        sudo mkdir /sys/fs/cgroup/systemd
+                        sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
+            """
+        )
+        assert not success
+
+    def test_pids_mount_error(self, capsys):
+        """Test case where systemd mount isn't present."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                mock.Mock(returncode=1),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=1),  # /sys/fs/cgroup/pids
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+            ],
+        )
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Cgroups
+                    These cgroup mounts do not exist on the host: pids.
+                    These mounts are required to run XRd.
+            """
+        )
+        assert not success
+
+    def test_systemd_cpu_mount_error(self, capsys):
+        """Test case where systemd mount isn't present."""
+        success, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                mock.Mock(returncode=1),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=1),  # /sys/fs/cgroup/systemd
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=0),
+                mock.Mock(returncode=1),  # /sys/fs/cgroup/cpu
+                mock.Mock(returncode=0),
+            ],
+        )
+        assert output == textwrap.dedent(
+            """\
+            FAIL -- Cgroups
+                    These cgroup mounts do not exist on the host: systemd, cpu.
+                    These mounts are required to run XRd.
+                    If your distro doesn't use systemd, manually add the systemd cgroup mount with:
+                        sudo mkdir /sys/fs/cgroup/systemd
+                        sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
         assert not success
