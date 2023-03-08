@@ -12,6 +12,11 @@ Changes added to the preview for 7.9.1.
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
 
+### v1.1.8 (2023-03-08)
+
+- Add a check in the `host-check` script to verify if the host has required cgroup mounts.
+
+
 ### v1.1.7 (2023-02-24)
 
 - `launch-xrd` to output a message asking the user to specify the platform when specifying dry-run on a non-loaded image, instead of trying to pull the image.
