@@ -463,7 +463,7 @@ def check_cgroups() -> CheckFuncReturn:
         )
         fail_msg += (
             (
-                "\nTo add a systemd mount, run:"
+                "\nIf your distro doesn't use systemd, manually add the systemd cgroup mount with:"
                 "\n    sudo mkdir /sys/fs/cgroup/systemd"
                 "\n    sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd"
             )
