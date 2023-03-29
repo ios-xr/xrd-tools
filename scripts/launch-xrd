@@ -135,7 +135,7 @@ _runcmd() {
 #   Arg 1: image name
 _pull_image() {
     echo "Specified image is not loaded, attempting to pull..."
-    if ! "$CONTAINER_EXE" pull "$1" || ! "$CONTAINER_EXE" inspect "$1" &>/dev/null; then
+    if ! $CONTAINER_EXE pull "$1" || ! $CONTAINER_EXE inspect "$1" &>/dev/null; then
         echo "Unrecognised image '$1' - should be either an image loaded " \
             "in the local $CONTAINER_MGR registry or an image that can be pulled." >&2
         return 1
@@ -298,7 +298,7 @@ else
 fi
 
 # Check the container manager is found.
-if ! "$CONTAINER_EXE" --version &>/dev/null; then
+if ! $CONTAINER_EXE --version &>/dev/null; then
     echo "Error: Container executable '$CONTAINER_EXE' not found." >&2
     bad_usage
 fi
@@ -370,8 +370,8 @@ fi
 
 # Persist data by making and mounting a volume at /xr-storage/.
 if [[ $PERSIST_VOL ]]; then
-    if ! "$CONTAINER_EXE" volume inspect "$PERSIST_VOL" &> /dev/null; then
-        CMD=("$CONTAINER_EXE" volume create "$PERSIST_VOL")
+    if ! $CONTAINER_EXE volume inspect "$PERSIST_VOL" &> /dev/null; then
+        CMD=($CONTAINER_EXE volume create "$PERSIST_VOL")
         if [[ $DRY_RUN == 1 ]]; then
             _runcmd "${CMD[@]}"
         else
@@ -487,7 +487,7 @@ read -a extra_args <<< "$EXTRA_ARGS"
 # -----------------------------------------------------------------------------
 
 _runcmd \
-    "$CONTAINER_EXE" run -it \
+    $CONTAINER_EXE run -it \
         "${run_args[@]}" \
         "${name_args[@]}" \
         "${caps_args[@]}" \
