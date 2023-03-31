@@ -146,7 +146,7 @@ _pull_image() {
 #   Arg 1: image name
 _get_platform() {
     local platform
-    if ! platform="$($CONTAINER_EXE inspect "$1" \
+    if ! platform="$("$CONTAINER_EXE" inspect "$1" \
         --format='{{index .Config.Labels "com.cisco.ios-xr.platform"}}' \
         2>/dev/null)"; then
         # This should never be hit.
@@ -305,7 +305,7 @@ fi
 
 # Obtain the platform from the chosen image.
 if [[ ! $PLATFORM ]]; then
-    if ! $CONTAINER_EXE inspect "$IMAGE" &>/dev/null; then
+    if ! "$CONTAINER_EXE" inspect "$IMAGE" &>/dev/null; then
         if [[ $DRY_RUN == 1 ]]; then
             echo "The image $1 is not loaded in the local $CONTAINER_MGR registry." >&2
             echo "Platform must be specified for dry-run when the image isn't loaded." >&2
