@@ -298,7 +298,7 @@ else
 fi
 
 # Check the container manager is found.
-if ! "$CONTAINER_EXE" --version &>/dev/null; then
+if [[ $DRY_RUN == 0 ]] && ! "$CONTAINER_EXE" --version &>/dev/null; then
     echo "Error: Container executable '$CONTAINER_EXE' not found." >&2
     bad_usage
 fi
