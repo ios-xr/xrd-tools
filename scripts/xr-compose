@@ -37,6 +37,7 @@ if sys.version_info < (3, 7):
     )
     sys.exit(1)
 
+# pylint: disable=wrong-import-position
 import argparse
 import enum
 import logging
@@ -48,6 +49,8 @@ from collections import OrderedDict
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import yaml
+
+# pylint: enable=wrong-import-position
 
 
 # --------------
