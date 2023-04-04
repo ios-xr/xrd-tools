@@ -26,6 +26,7 @@ specification of PCI interfaces).
 
 import sys
 
+
 if sys.version_info < (3, 7):
     print(
         "Your python version {} has reached end-of-life.\n"
@@ -49,6 +50,7 @@ from collections import OrderedDict
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import yaml
+
 
 # pylint: enable=wrong-import-position
 
