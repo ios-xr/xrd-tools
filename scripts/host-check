@@ -20,6 +20,19 @@
 Check that the host is set up correctly for running XRd containers.
 """
 
+import sys
+
+if sys.version_info < (3, 7):
+    print(
+        "Your python version {} has reached end-of-life.\n"
+        "Please ensure you have 'python3' at version 3.7 or higher on your "
+        "PATH (check with 'python3 --version').".format(
+            ".".join(str(x) for x in sys.version_info[:2]),
+        ),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 import argparse
 import enum
 import functools
@@ -28,7 +41,6 @@ import os
 import re
 import shlex
 import subprocess
-import sys
 import textwrap
 from dataclasses import dataclass
 from typing import (
