@@ -24,18 +24,35 @@ specification of PCI interfaces).
 
 """
 
+import sys
+
+
+if sys.version_info < (3, 7):
+    print(
+        "Your python version {} has reached end-of-life.\n"
+        "Please ensure you have 'python3' at version 3.7 or higher on your "
+        "PATH (check with 'python3 --version').".format(
+            ".".join(str(x) for x in sys.version_info[:2]),
+        ),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+# pylint: disable=wrong-import-position
 import argparse
 import enum
 import logging
 import os
 import re
 import subprocess
-import sys
 import typing
 from collections import OrderedDict
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 import yaml
+
+
+# pylint: enable=wrong-import-position
 
 
 # --------------
