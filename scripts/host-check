@@ -322,6 +322,7 @@ class CheckState(enum.Enum):
     WARNING = "warning"
     SKIPPED = "skipped"
     FAILED = "failed"
+    ERROR = "error"  # Check state for when the check itself fails
     NEUTRAL = "neutral"
 
     def is_error(self) -> bool:
@@ -352,7 +353,7 @@ def check_arch() -> CheckFuncReturn:
             )
     except subprocess.SubprocessError:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             "Unable to check the CPU architecture with 'uname -m'.\n"
             "XRd supports the following architectures: "
             f"{', '.join(SUPPORTED_ARCHES)}.",
@@ -372,7 +373,7 @@ def check_cpu_cores() -> CheckFuncReturn:
         match = re.search(r"CPU\(s\):\s+(\d+)\s+", output)
         if not match:
             return (
-                CheckState.WARNING,
+                CheckState.ERROR,
                 f"Unable to parse the output from {cmd!r} -\n"
                 "unable to check the number of available CPU cores.\n"
                 + expected_cpus_msg,
@@ -386,7 +387,7 @@ def check_cpu_cores() -> CheckFuncReturn:
             )
     except subprocess.SubprocessError:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Error running {cmd!r} to check the number of available CPU cores.\n"
             + expected_cpus_msg,
         )
@@ -403,7 +404,7 @@ def check_kernel_version() -> CheckFuncReturn:
 
     except Exception:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             "Unable to check the kernel version - must be at least version 4.0",
         )
 
@@ -502,7 +503,7 @@ def check_inotify_limits(setting: str) -> CheckFuncReturn:
             val = int(f.read().strip())
     except Exception:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Failed to check inotify resource limits by reading\n"
             f"{path}.\n"
             f"The kernel parameter fs.inotify.{setting} should be set to at least {INOTIFY_PER_CONTAINER}\n"
@@ -566,7 +567,7 @@ def check_userspace_aslr() -> CheckFuncReturn:
             val = int(f.read().strip())
     except Exception:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Failed to read {path}, which controls ASLR\n"
             f"(Address-Space Layout Randomization).\n" + recommendation,
         )
@@ -655,7 +656,7 @@ def check_socket_parameters() -> CheckFuncReturn:
                 val = int(f.read().strip())
         except Exception:
             return (
-                CheckState.WARNING,
+                CheckState.ERROR,
                 f"Failed to read socket kernel parameter {path}.",
             )
 
@@ -703,7 +704,7 @@ def check_udp_parameters() -> CheckFuncReturn:
             val = f.read().strip().split()
     except Exception:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Failed to read UDP kernel parameter {path}.",
         )
 
@@ -755,7 +756,7 @@ def check_ram(ram_req: int) -> CheckFuncReturn:
         output = run_cmd(shlex.split(cmd))[0]
     except subprocess.SubprocessError:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"The command {cmd!r} failed - unable to determine the available RAM on\n"
             f"the host.\n" + xrd_expected_usage_str,
         )
@@ -770,7 +771,7 @@ def check_ram(ram_req: int) -> CheckFuncReturn:
         free_mem = int(output.split("\n")[1].split()[-1]) / (2**30)
     except Exception:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Failed to parse the output from {cmd!r} - unable to determine the\n"
             f"available RAM on the host.\n" + xrd_expected_usage_str,
         )
@@ -804,7 +805,7 @@ def check_cpu_extensions() -> CheckFuncReturn:
         match = re.search(r"Flags:\s+(.+)", output)
         if not match:
             return (
-                CheckState.WARNING,
+                CheckState.ERROR,
                 f"Unable to parse the output from {cmd!r} - unable to check\n"
                 f"for the required CPU extensions: "
                 + ", ".join(sorted(required_cpu_exts))
@@ -825,7 +826,7 @@ def check_cpu_extensions() -> CheckFuncReturn:
             )
     except subprocess.SubprocessError:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Unable to parse the output from {cmd!r} - unable to check\n"
             f"for the required CPU extensions: "
             + ", ".join(sorted(required_cpu_exts))
@@ -919,7 +920,7 @@ def check_hugepages() -> CheckFuncReturn:
                 return check_state, "\n".join(msgs)
     except OSError:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Unable to parse the contents of {path} - unable to check\n"
             f"whether hugepages are enabled with 1GiB (recommended)\n"
             f"or 2MiB hugepage size and at least {HUGEPAGE_MEMORY_GB}GiB of available\n"
@@ -927,7 +928,7 @@ def check_hugepages() -> CheckFuncReturn:
         )
     except (ValueError, IndexError):
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Unable to parse the contents of {path} - unable to check\n"
             f"whether hugepages are enabled with 1GiB (recommended)\n"
             f"or 2MiB hugepage size and at least {HUGEPAGE_MEMORY_GB}GiB of available\n"
@@ -1105,7 +1106,7 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
                 shared_mem_max_page_size = int(contents) / (2**30)
             except ValueError:
                 return (
-                    CheckState.WARNING,
+                    CheckState.ERROR,
                     f"Unable to parse the contents of {path} - unable to\n"
                     f"determine the maximum size of shared memory pages.\n"
                     f"At least {SHARED_MEM_MAX_PAGE_SIZE_GB} GiB are required.",
@@ -1119,7 +1120,7 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
                 )
     except OSError:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Unable to read the contents of {path} - unable to\n"
             f"determine the maximum size of shared memory pages.\n"
             f"At least {SHARED_MEM_MAX_PAGE_SIZE_GB} GiB are required.",
@@ -1152,7 +1153,7 @@ def check_docker_client() -> CheckFuncReturn:
     )
     if not version_match:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Unable to parse Docker client version from {cmd!r}.\n"
             f"At least version 18.0 is required for XRd.",
         )
@@ -1185,7 +1186,7 @@ def check_docker_daemon() -> CheckFuncReturn:
     version_match = re.match(r'"(\d+\.\d+(?:\.\d+)?)"', version_str)
     if not version_match:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             f"Unable to parse Docker server version from\n"
             f"{cmd!r}.\n"
             f"At least version 18.0 is required for XRd.",
@@ -1249,7 +1250,7 @@ def check_docker_compose() -> CheckFuncReturn:
     )
     if not version_match:
         return (
-            CheckState.WARNING,
+            CheckState.ERROR,
             "Unable to parse Docker Compose version, at least version 1.18 is required.",
         )
     version = version_match.group(1)
@@ -1301,7 +1302,7 @@ def check_bridge_iptables() -> CheckFuncReturn:
                 val = int(f.read().strip())
         except Exception:
             return (
-                CheckState.WARNING,
+                CheckState.ERROR,
                 f"Failed to read iptables settings under {base_path}/.\n"
                 + long_msg,
             )
@@ -1393,19 +1394,22 @@ def print_check_status_msg(
 ) -> None:
     if status is CheckState.SUCCESS:
         colour = green
-        status_word = "PASS"
+        status_word = " PASS"
     elif status is CheckState.WARNING:
         colour = yellow
-        status_word = "WARN"
+        status_word = " WARN"
     elif status is CheckState.SKIPPED:
         colour = yellow
-        status_word = "SKIP"
+        status_word = " SKIP"
     elif status is CheckState.FAILED:
         colour = red
-        status_word = "FAIL"
+        status_word = " FAIL"
+    elif status is CheckState.ERROR:
+        colour = red
+        status_word = "ERROR"
     elif status is CheckState.NEUTRAL:
         colour = cyan
-        status_word = "INFO"
+        status_word = " INFO"
     else:
         assert False
 
@@ -1413,12 +1417,12 @@ def print_check_status_msg(
     if msg and len(msg) < 32:
         output += f" ({msg})"
     elif msg:
-        output += "\n" + textwrap.indent(msg, "        ")
+        output += "\n" + textwrap.indent(msg, "         ")
 
     print(colour(output))
 
 
-def perform_checks(checks: List[Check]) -> bool:
+def perform_checks(checks: List[Check]) -> Tuple[bool, bool]:
     """
     Perform host checks.
 
@@ -1441,7 +1445,7 @@ def perform_checks(checks: List[Check]) -> bool:
                     status = CheckState.SUCCESS
                     msg = None
             except CmdTimeoutError as e:
-                status = CheckState.WARNING
+                status = CheckState.ERROR
                 msg = f"Unexpected error: {e}"
             except Exception as e:
                 status = CheckState.FAILED
@@ -1453,7 +1457,9 @@ def perform_checks(checks: List[Check]) -> bool:
 
         results[name] = status
 
-    return not any(c.is_error() for c in results.values())
+    success = not any(c.is_error() for c in results.values())
+    errored_checks = any(c.ERROR for c in results.values())
+    return success, errored_checks
 
 
 def run_extra_checks(extra_checks: List[str]) -> Tuple[Set[str], Set[str]]:
@@ -1475,7 +1481,7 @@ def run_extra_checks(extra_checks: List[str]) -> Tuple[Set[str], Set[str]]:
     print_heading("Extra checks")
     for extra_check in sorted(extra_checks):
         print_subheading(f"{extra_check} checks")
-        extra_success = perform_checks(EXTRA_CHECKS_MAP[extra_check])
+        extra_success, _ = perform_checks(EXTRA_CHECKS_MAP[extra_check])
         if extra_success:
             extras_supported.add(extra_check)
         else:
@@ -1524,7 +1530,7 @@ def run_checks_specific_platform(
     """
     extras_not_supported: Set[str] = set()
     print_heading(f"Platform checks - {platform}")
-    platform_success = perform_checks(
+    platform_success, errored_checks = perform_checks(
         BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]
     )
 
@@ -1532,7 +1538,11 @@ def run_checks_specific_platform(
         extras_supported, extras_not_supported = run_extra_checks(extra_checks)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
-    if platform_success:
+    if platform_success and errored_checks:
+        print_without_newline(
+            f"Unable to determine if host is set up correctly for {platform}"
+        )
+    elif platform_success and not errored_checks:
         print_without_newline(
             f"Host environment set up correctly for {platform}"
         )
