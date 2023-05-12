@@ -322,7 +322,7 @@ class CheckState(enum.Enum):
     WARNING = "warning"
     SKIPPED = "skipped"
     FAILED = "failed"
-    ERROR = "error"  # Check state for when the check itself fails
+    ERROR = "error"  # Check state for when the check fails to run/errors
     NEUTRAL = "neutral"
 
     def is_error(self) -> bool:
@@ -1429,7 +1429,7 @@ def perform_checks(checks: List[Check]) -> Tuple[bool, bool]:
     :param checks:
         Checks to run through.
     :return:
-        Whether all required checks succeeded.
+        Whether all required checks succeeded, and whether any checks errored.
     """
     results: Dict[str, CheckState] = {}
     msg: Optional[str]
@@ -1458,7 +1458,7 @@ def perform_checks(checks: List[Check]) -> Tuple[bool, bool]:
         results[name] = status
 
     success = not any(c.is_error() for c in results.values())
-    errored_checks = any(c.ERROR for c in results.values())
+    errored_checks = any(c is CheckState.ERROR for c in results.values())
     return success, errored_checks
 
 
@@ -1540,7 +1540,7 @@ def run_checks_specific_platform(
     print(f"\n{DOUBLE_DASHED_LINE}")
     if platform_success and errored_checks:
         print_without_newline(
-            f"Unable to determine if host is set up correctly for {platform}"
+            f"One or more checks could not be performed, see errors above"
         )
     elif platform_success and not errored_checks:
         print_without_newline(
@@ -1565,10 +1565,11 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
     :return:
         Whether at least one XR platform is supported.
     """
-    platforms_supported = set()
-    platforms_not_supported = set()
+    platforms_supported: Set[str] = set()
+    platforms_not_supported: Set[str] = set()
     extras_supported: Set[str] = set()
     extras_not_supported: Set[str] = set()
+    platforms_with_errored_checks: Set[str] = set()
 
     print_heading("Platform checks")
     print_subheading("base checks")
@@ -1576,7 +1577,10 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
 
     for platform, checks in PLATFORM_CHECKS_MAP.items():
         print_subheading(f"{platform} checks")
-        platform_success = perform_checks(checks)
+        platform_success, errored_checks = perform_checks(checks)
+
+        if errored_checks:
+            platforms_with_errored_checks.add(platform)
 
         if base_success and platform_success:
             platforms_supported.add(platform)
@@ -1588,13 +1592,17 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
 
     print(f"\n{DOUBLE_DASHED_LINE}")
 
-    if platforms_supported:
+    if platforms_with_errored_checks:
         print_without_newline(
-            "XR platforms supported: " + ", ".join(sorted(platforms_supported))
+            "One or more checks could not be performed, see errors above"
         )
     elif not platforms_supported:
         print_without_newline(
             "!! Host NOT set up correctly for any XR platforms !!"
+        )
+    else:
+        print_without_newline(
+            "XR platforms supported: " + ", ".join(sorted(platforms_supported))
         )
     if platforms_not_supported and platforms_supported:
         print_without_newline(
