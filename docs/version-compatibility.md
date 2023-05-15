@@ -3,23 +3,17 @@
 This file documents compatibility between versions of this project with XR releases.
 In some cases extra arguments will be required to continue using older XR releases, and those cases will be documented here.
 
-## Preview 7.10.1
-
-Supports all XR versions between 7.7.1 and 7.10.1 (all released versions of XRd).
-
-See the v1.1 section below for compatibility with XR 7.7.1.
-
-
-## Preview 7.9.1
+## v1.1
 
 Supports all XR versions between 7.7.1 and 7.9.1 (all released versions of XRd).
 
 See the v1.1 section below for compatibility with XR 7.7.1.
 
 
-## v1.1
+### XR 7.8.1
 
-Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd).
+- The real-time scheduling host check can be ignored before XR version 7.9.1.
+
 
 ### XR 7.7.1
 
@@ -37,6 +31,7 @@ Supports XR 7.7.1 and 7.8.1 (the first and most recent released versions of XRd)
 - Does not support running with `--cgroupns=private`.
 - Requires `/sys/fs/cgroup/systemd/` to be mounted read-write on the host.
 - Does not support cgroups v2.
+- The real-time scheduling host check can be ignored before XR version 7.9.1.
 
 
 ## v1.0
