@@ -3,7 +3,14 @@
 
 ## v1 (active)
 
-The v1 release supports Cisco IOS-XR release versions 7.7.1 and 7.8.1.
+The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.9.1.
+
+### v1.1.9 (2023-05-15)
+
+Changes corresponding to the release of XR version 7.9.1.
+
+- Add check to ensure real-time group scheduling is disabled on the host for XRd vRouter.
+
 
 ### v1.1.8 (2023-03-08)
 
