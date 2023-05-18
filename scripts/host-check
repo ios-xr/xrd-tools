@@ -330,6 +330,7 @@ class CheckState(enum.Enum):
             CheckState.FAILED,
             CheckState.SKIPPED,
             CheckState.WARNING,
+            CheckState.ERROR,
         ]
 
 
@@ -1042,7 +1043,7 @@ def check_iommu() -> CheckFuncReturn:
             )
     except Exception:
         return (
-            warning_state,
+            CheckState.ERROR,
             f"Unable to check if IOMMU is enabled by listing {iommu_dev_filepath}.\n"
             + recommendation,
         )
@@ -1066,7 +1067,7 @@ def check_iommu() -> CheckFuncReturn:
 
     except subprocess.SubprocessError:
         return (
-            warning_state,
+            CheckState.ERROR,
             f"The cmd {cmd!r} failed - unable to\n"
             "determine the network devices on the host. IOMMU is enabled.",
         )
@@ -1538,11 +1539,11 @@ def run_checks_specific_platform(
         extras_supported, extras_not_supported = run_extra_checks(extra_checks)
 
     print(f"\n{DOUBLE_DASHED_LINE}")
-    if platform_success and errored_checks:
+    if errored_checks:
         print_without_newline(
-            f"One or more checks could not be performed, see errors above"
+            "!! One or more checks could not be performed, see errors above !!"
         )
-    elif platform_success and not errored_checks:
+    elif platform_success:
         print_without_newline(
             f"Host environment set up correctly for {platform}"
         )
@@ -1573,13 +1574,13 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
 
     print_heading("Platform checks")
     print_subheading("base checks")
-    base_success = perform_checks(BASE_CHECKS)
+    base_success, base_check_errors = perform_checks(BASE_CHECKS)
 
     for platform, checks in PLATFORM_CHECKS_MAP.items():
         print_subheading(f"{platform} checks")
-        platform_success, errored_checks = perform_checks(checks)
+        platform_success, plat_check_errors = perform_checks(checks)
 
-        if errored_checks:
+        if base_check_errors or plat_check_errors:
             platforms_with_errored_checks.add(platform)
 
         if base_success and platform_success:
@@ -1594,7 +1595,7 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
 
     if platforms_with_errored_checks:
         print_without_newline(
-            "One or more checks could not be performed, see errors above"
+            "!! One or more checks could not be performed, see errors above !!"
         )
     elif not platforms_supported:
         print_without_newline(

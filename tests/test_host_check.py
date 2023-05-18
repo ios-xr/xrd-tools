@@ -66,7 +66,7 @@ def perform_check(
     files: Optional[Union[Tuple[str, str], List[Tuple[str, str]]]] = None,
     deps: Optional[List[str]] = None,
     failed_deps: Optional[List[str]] = None,
-) -> Tuple[bool, str]:
+) -> Tuple[bool, bool, str]:
     """
     Perform a single host check and return whether it succeeded and the output.
 
@@ -89,7 +89,7 @@ def perform_check(
     :param failed_deps:
         Any dependencies to treat as failed.
     :return:
-        The result of the check and the output from the check.
+        The result of the check, whether the check errored, and the output from the check.
     """
     check = [c for c in CHECKS_BY_GROUP[group] if c.name == name][0]
     checks = []
@@ -152,7 +152,7 @@ def perform_check(
             )
 
         # Run the host check.
-        succeeded = host_check.perform_checks(checks)
+        succeeded, errored = host_check.perform_checks(checks)
 
     # Check the expected commands were run.
     if cmds:
@@ -178,7 +178,14 @@ def perform_check(
         lines = lines[len(deps) :]
         output = "".join(lines)
 
-    return succeeded, output
+    return succeeded, errored, output
+
+
+def pretty_print(msg: str) -> str:
+    dedent_msg = textwrap.dedent(msg)
+    if dedent_msg.startswith("ERROR"):
+        return dedent_msg
+    return textwrap.indent(dedent_msg, " ")
 
 
 # --------------------------------------------------------------------
@@ -191,11 +198,22 @@ class TestFlow:
 
     @staticmethod
     def run_host_check(
-        capsys, argv: List[str], failing_checks: List[str] = ()
+        capsys,
+        argv: List[str],
+        failing_checks: List[str] = [],
+        erroring_checks: List[str] = [],
     ) -> Tuple[int, str]:
-        def perform_checks_mock(checks) -> bool:
-            print("Checks:", ", ".join(c.name for c in checks))
-            return not (set(c.name for c in checks) & set(failing_checks))
+        def perform_checks_mock(checks) -> Tuple[bool, bool]:
+            checks_list = [c.name for c in checks]
+            print("Checks:", ", ".join(checks_list))
+            success = not (set(checks_list) & set(failing_checks))
+            if erroring_checks:
+                errored_checks = set(erroring_checks).issubset(
+                    set(checks_list)
+                )
+            else:
+                errored_checks = False
+            return success, errored_checks
 
         with pytest.raises(SystemExit) as exc_info:
             with mock.patch.object(
@@ -475,7 +493,7 @@ Extra checks passed: docker, xr-compose
         exit_code, output = self.run_host_check(
             capsys,
             ["-p", "xrd-control-plane"],
-            failing_checks=["Core pattern"],
+            failing_checks=["Kernel version"],
         )
         cli_output = f"""\
 ==============================
@@ -493,7 +511,7 @@ Checks: {CONTROL_PLANE_CHECKS_STR}
     def test_no_plats_supported(self, capsys):
         """Test no platforms being supported when host-check is run without arguments."""
         exit_code, output = self.run_host_check(
-            capsys, [], failing_checks=["Core pattern"]
+            capsys, [], failing_checks=["Kernel version"]
         )
         cli_output = f"""\
 ==============================
@@ -652,7 +670,7 @@ class _CheckTestBase:
         cmd_effects=None,
         read_effects=None,
         failed_deps=None,
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, bool, str]:
         """
         Perform the class's check with the given effects for each subproc cmd.
 
@@ -711,31 +729,35 @@ class TestArch(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the architecture being correct."""
-        success, output = self.perform_check(capsys, cmd_effects="x86_64")
-        assert output == "PASS -- CPU architecture (x86_64)\n"
+        success, error, output = self.perform_check(
+            capsys, cmd_effects="x86_64"
+        )
+        assert output == " PASS -- CPU architecture (x86_64)\n"
         assert success
 
     def test_incorrect_arch(self, capsys):
         """Test the incorrect architecture case."""
-        success, output = self.perform_check(capsys, cmd_effects="arm64")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects="arm64"
+        )
+        assert output == pretty_print(
             f"""\
-            FAIL -- CPU architecture
-                    The CPU architecture is arm64, but XRd only supports: x86_64.
+             FAIL -- CPU architecture
+                     The CPU architecture is arm64, but XRd only supports: x86_64.
             """
         )
         assert not success
 
     def test_subproc_error(self, capsys):
-        """Test a subrpocess error being raised."""
-        success, output = self.perform_check(
+        """Test a subprocess error being raised."""
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- CPU architecture
-                    Unable to check the CPU architecture with 'uname -m'.
-                    XRd supports the following architectures: x86_64.
+            ERROR -- CPU architecture
+                     Unable to check the CPU architecture with 'uname -m'.
+                     XRd supports the following architectures: x86_64.
             """
         )
         assert not success
@@ -750,74 +772,78 @@ class TestCPUCores(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, cmd_effects="CPU(s): 16 ")
-        assert output == f"PASS -- CPU cores (16)\n"
+        success, error, output = self.perform_check(
+            capsys, cmd_effects="CPU(s): 16 "
+        )
+        assert output == f" PASS -- CPU cores (16)\n"
         assert success
 
     def test_too_few_cpus(self, capsys):
         """Test there being too few available CPU cores."""
-        success, output = self.perform_check(capsys, cmd_effects="CPU(s): 1 ")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects="CPU(s): 1 "
+        )
+        assert output == pretty_print(
             f"""\
-            FAIL -- CPU cores
-                    The number of available CPU cores is 1,
-                    but at least 2 CPU cores are required.
+             FAIL -- CPU cores
+                     The number of available CPU cores is 1,
+                     but at least 2 CPU cores are required.
             """
         )
         assert not success
 
     def test_parse_error(self, capsys):
         """Test error when parsing output from 'lscpu'."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="bananas taste awesome"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- CPU cores
-                    Unable to parse the output from 'lscpu' -
-                    unable to check the number of available CPU cores.
-                    At least 2 CPU cores are required.
+            ERROR -- CPU cores
+                     Unable to parse the output from 'lscpu' -
+                     unable to check the number of available CPU cores.
+                     At least 2 CPU cores are required.
             """
         )
         assert not success
 
     def test_subproc_error(self, capsys):
         """Test subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- CPU cores
-                    Error running 'lscpu' to check the number of available CPU cores.
-                    At least 2 CPU cores are required.
+            ERROR -- CPU cores
+                     Error running 'lscpu' to check the number of available CPU cores.
+                     At least 2 CPU cores are required.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- CPU cores
-                    Unexpected error: test exception
+             FAIL -- CPU cores
+                     Unexpected error: test exception
             """
         )
         assert not success
 
     def test_timeout_error(self, capsys):
         """Test timeout error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- CPU cores
-                    Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
+            ERROR -- CPU cores
+                     Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
         assert not success
@@ -832,76 +858,78 @@ class TestKernelVersion(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, cmd_effects="4.1")
-        assert output == "PASS -- Kernel version (4.1)\n"
+        success, error, output = self.perform_check(capsys, cmd_effects="4.1")
+        assert output == " PASS -- Kernel version (4.1)\n"
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- Kernel version
-                    Unable to check the kernel version - must be at least version 4.0
+            ERROR -- Kernel version
+                     Unable to check the kernel version - must be at least version 4.0
             """
         )
         assert not success
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- Kernel version
-                    Unable to check the kernel version - must be at least version 4.0
+            ERROR -- Kernel version
+                     Unable to check the kernel version - must be at least version 4.0
             """
         )
         assert not success
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, output = self.perform_check(capsys, cmd_effects="3.9.8")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects="3.9.8"
+        )
+        assert output == pretty_print(
             """\
-            FAIL -- Kernel version
-                    The kernel version is 3.9, but at least version 4.0 is required.
+             FAIL -- Kernel version
+                     The kernel version is 3.9, but at least version 4.0 is required.
             """
         )
         assert not success
 
     def test_rhel83_version(self, capsys):
         """Test the version being 4.18.0-240 on RHEL/CentOS 8.3."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.el8"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Kernel version
-                    The operating system appears to be RHEL/CentOS 8.3 (kernel version 4.18.0-240),
-                    which is not supported due to a kernel bug.
-                    Please upgrade/downgrade to a RHEL/CentOS version higher or lower than 8.3
+             FAIL -- Kernel version
+                     The operating system appears to be RHEL/CentOS 8.3 (kernel version 4.18.0-240),
+                     which is not supported due to a kernel bug.
+                     Please upgrade/downgrade to a RHEL/CentOS version higher or lower than 8.3
             """
         )
         assert not success
 
     def test_rhel82_version(self, capsys):
         """Test the version being 4.18.0-193 on RHEL/CentOS 8.2."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="4.18.0-193.el8"
         )
-        assert output == "PASS -- Kernel version (4.18)\n"
+        assert output == " PASS -- Kernel version (4.18)\n"
         assert success
 
     def test_generic_os_with_rhel83_kernel_version(self, capsys):
         """Test the version being 4.18.0-240 on a generic operating system."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.generic"
         )
-        assert output == "PASS -- Kernel version (4.18)\n"
+        assert output == " PASS -- Kernel version (4.18)\n"
         assert success
 
 
@@ -918,79 +946,83 @@ class TestBaseKernelModules(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, cmd_effects=["", ""])
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects=["", ""]
+        )
+        assert output == pretty_print(
             f"""\
-            PASS -- Base kernel modules
-                    Installed module(s): dummy, nf_tables
+             PASS -- Base kernel modules
+                     Installed module(s): dummy, nf_tables
             """
         )
         assert success
 
     def test_missing_nf_tables(self, capsys):
         """Test missing the nf_tables kernel module."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=["", subprocess.SubprocessError(1, "")]
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Base kernel modules
-                    Missing kernel module(s): nf_tables
-                    (checked in /lib/modules/*/modules.*).
-                    It may be possible to install using your distro's package manager.
+             FAIL -- Base kernel modules
+                     Missing kernel module(s): nf_tables
+                     (checked in /lib/modules/*/modules.*).
+                     It may be possible to install using your distro's package manager.
             """
         )
         assert not success
 
     def test_missing_dummy(self, capsys):
         """Test missing the dummy kernel module."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=[subprocess.SubprocessError(1, ""), ""]
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Base kernel modules
-                    Missing kernel module(s): dummy
-                    (checked in /lib/modules/*/modules.*).
-                    It may be possible to install using your distro's package manager.
+             FAIL -- Base kernel modules
+                     Missing kernel module(s): dummy
+                     (checked in /lib/modules/*/modules.*).
+                     It may be possible to install using your distro's package manager.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=["", Exception("test exception")]
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Base kernel modules
-                    Unexpected error: test exception
+             FAIL -- Base kernel modules
+                     Unexpected error: test exception
             """
         )
         assert not success
 
     def test_timeout_error(self, capsys):
         """Test timeout error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- Base kernel modules
-                    Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
+            ERROR -- Base kernel modules
+                     Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
         assert not success
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, failed_deps=self.deps
+        )
+        assert output == pretty_print(
             f"""\
-            SKIP -- Base kernel modules
-                    Skipped due to failed checks: Kernel version
+             SKIP -- Base kernel modules
+                     Skipped due to failed checks: Kernel version
             """
         )
         assert not success
@@ -1019,7 +1051,7 @@ class TestCgroups(_CheckTestBase):
 
     def test_v1_success(self, capsys):
         """Test the cgroups v1 success case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1031,24 +1063,24 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            PASS -- Cgroups (v1)
+             PASS -- Cgroups (v1)
             """
         )
         assert success
 
     def test_unknown_version(self, capsys):
         """Test the case where the cgroups version is unrecognised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[mock.Mock(returncode=1), mock.Mock(returncode=1)],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Cgroups
-                    Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
-                    contain cgroup v1 mounts.
+             FAIL -- Cgroups
+                     Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
+                     contain cgroup v1 mounts.
             """
         )
         assert not success
@@ -1056,34 +1088,34 @@ class TestCgroups(_CheckTestBase):
     def test_v2_info(self, capsys):
         """Test the case where v2 cgroups are in use."""
         with mock.patch("builtins.open", mock.mock_open(read_data="memory")):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys, cmd_effects=[mock.Mock(returncode=0), None]
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            INFO -- Cgroups
-                    Cgroups v2 is in use - this is not supported for production environments.
+             INFO -- Cgroups
+                     Cgroups v2 is in use - this is not supported for production environments.
             """
         )
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Cgroups
-                    Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
-                    contain cgroup v1 mounts.
+             FAIL -- Cgroups
+                     Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
+                     contain cgroup v1 mounts.
             """
         )
         assert not success
 
     def test_systemd_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1095,21 +1127,21 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Cgroups
-                    These cgroup mounts do not exist on the host: systemd.
-                    These mounts are required to run XRd.
-                    If your distro doesn't use systemd, manually add the systemd cgroup mount with:
-                        sudo mkdir /sys/fs/cgroup/systemd
-                        sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
+             FAIL -- Cgroups
+                     These cgroup mounts do not exist on the host: systemd.
+                     These mounts are required to run XRd.
+                     If your distro doesn't use systemd, manually add the systemd cgroup mount with:
+                         sudo mkdir /sys/fs/cgroup/systemd
+                         sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
         assert not success
 
     def test_pids_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1121,18 +1153,18 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Cgroups
-                    These cgroup mounts do not exist on the host: pids.
-                    These mounts are required to run XRd.
+             FAIL -- Cgroups
+                     These cgroup mounts do not exist on the host: pids.
+                     These mounts are required to run XRd.
             """
         )
         assert not success
 
     def test_systemd_cpu_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1144,14 +1176,14 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Cgroups
-                    These cgroup mounts do not exist on the host: systemd, cpu.
-                    These mounts are required to run XRd.
-                    If your distro doesn't use systemd, manually add the systemd cgroup mount with:
-                        sudo mkdir /sys/fs/cgroup/systemd
-                        sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
+             FAIL -- Cgroups
+                     These cgroup mounts do not exist on the host: systemd, cpu.
+                     These mounts are required to run XRd.
+                     If your distro doesn't use systemd, manually add the systemd cgroup mount with:
+                         sudo mkdir /sys/fs/cgroup/systemd
+                         sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
         assert not success
@@ -1165,63 +1197,71 @@ class _TestInotifyLimitsBase(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, read_effects="10000000")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects="10000000"
+        )
+        assert output == pretty_print(
             f"""\
-            PASS -- {self.check_name}
-                    10000000 - this is expected to be sufficient for 2500 XRd instance(s).
+             PASS -- {self.check_name}
+                     10000000 - this is expected to be sufficient for 2500 XRd instance(s).
             """
         )
         assert success
 
     def test_too_low(self, capsys):
         """Test the limit being too low."""
-        success, output = self.perform_check(capsys, read_effects="3000")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects="3000"
+        )
+        assert output == pretty_print(
             f"""\
-            FAIL -- {self.check_name}
-                    The kernel parameter fs.inotify.{self.inotify_param} is set to 3000 but
-                    should be at least 4000 (sufficient for a single instance) - the
-                    recommended value is 64000.
-                    This can be addressed by adding 'fs.inotify.{self.inotify_param}=64000'
-                    to /etc/sysctl.conf or in a dedicated conf file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w fs.inotify.{self.inotify_param}=64000
+             FAIL -- {self.check_name}
+                     The kernel parameter fs.inotify.{self.inotify_param} is set to 3000 but
+                     should be at least 4000 (sufficient for a single instance) - the
+                     recommended value is 64000.
+                     This can be addressed by adding 'fs.inotify.{self.inotify_param}=64000'
+                     to /etc/sysctl.conf or in a dedicated conf file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
         assert not success
 
     def test_warning_level(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
-        success, output = self.perform_check(capsys, read_effects="7000")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects="7000"
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- {self.check_name}
-                    The kernel parameter fs.inotify.{self.inotify_param} is set to 7000 -
-                    this is expected to be sufficient for 1 XRd instance(s).
-                    The recommended value is 64000.
-                    This can be addressed by adding 'fs.inotify.{self.inotify_param}=64000'
-                    to /etc/sysctl.conf or in a dedicated conf file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w fs.inotify.{self.inotify_param}=64000
+             WARN -- {self.check_name}
+                     The kernel parameter fs.inotify.{self.inotify_param} is set to 7000 -
+                     this is expected to be sufficient for 1 XRd instance(s).
+                     The recommended value is 64000.
+                     This can be addressed by adding 'fs.inotify.{self.inotify_param}=64000'
+                     to /etc/sysctl.conf or in a dedicated conf file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
         assert not success
 
     def test_error(self, capsys):
         """Test error being raised."""
-        success, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=Exception
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- {self.check_name}
-                    Failed to check inotify resource limits by reading
-                    /proc/sys/fs/inotify/{self.inotify_param}.
-                    The kernel parameter fs.inotify.{self.inotify_param} should be set to at least 4000
-                    (sufficient for a single instance) - the recommended value is 64000.
-                    This can be addressed by adding 'fs.inotify.{self.inotify_param}=64000'
-                    to /etc/sysctl.conf or in a dedicated conf file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w fs.inotify.{self.inotify_param}=64000
+            ERROR -- {self.check_name}
+                     Failed to check inotify resource limits by reading
+                     /proc/sys/fs/inotify/{self.inotify_param}.
+                     The kernel parameter fs.inotify.{self.inotify_param} should be set to at least 4000
+                     (sufficient for a single instance) - the recommended value is 64000.
+                     This can be addressed by adding 'fs.inotify.{self.inotify_param}=64000'
+                     to /etc/sysctl.conf or in a dedicated conf file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
         assert not success
@@ -1252,28 +1292,33 @@ class TestCorePattern(_CheckTestBase):
 
     def test_managed_by_xr(self, capsys):
         """Test the managed by XR case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="no leading pipe"
         )
-        assert output == "INFO -- Core pattern (core files managed by XR)\n"
+        assert output == " INFO -- Core pattern (core files managed by XR)\n"
         assert success
 
     def test_managed_by_host(self, capsys):
         """Test the managed by host case."""
-        success, output = self.perform_check(capsys, read_effects="| piped")
+        success, error, output = self.perform_check(
+            capsys, read_effects="| piped"
+        )
         assert (
-            output == "INFO -- Core pattern (core files managed by the host)\n"
+            output
+            == " INFO -- Core pattern (core files managed by the host)\n"
         )
         assert success
 
     def test_error(self, capsys):
         """Test error being raised."""
-        success, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=Exception
+        )
+        assert output == pretty_print(
             f"""\
-            INFO -- Core pattern
-                    Failed to read /proc/sys/kernel/core_pattern - unable to determine
-                    whether core files are managed by XR or the host.
+             INFO -- Core pattern
+                     Failed to read /proc/sys/kernel/core_pattern - unable to determine
+                     whether core files are managed by XR or the host.
             """
         )
         assert success
@@ -1288,60 +1333,64 @@ class TestASLR(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, read_effects="2")
-        assert output == "PASS -- ASLR (full randomization)\n"
+        success, error, output = self.perform_check(capsys, read_effects="2")
+        assert output == " PASS -- ASLR (full randomization)\n"
         assert success
 
     def test_read_error(self, capsys):
         """Test the limit being too low."""
-        success, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=Exception
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- ASLR
-                    Failed to read /proc/sys/kernel/randomize_va_space, which controls ASLR
-                    (Address-Space Layout Randomization).
-                    It is recommended for this kernel parameter to be set to 2 (full
-                    randomization) for security reasons. This can be done by adding
-                    'kernel.randomize_va_space=2' to /etc/sysctl.conf or in a dedicated conf
-                    file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w kernel.randomize_va_space=2
+            ERROR -- ASLR
+                     Failed to read /proc/sys/kernel/randomize_va_space, which controls ASLR
+                     (Address-Space Layout Randomization).
+                     It is recommended for this kernel parameter to be set to 2 (full
+                     randomization) for security reasons. This can be done by adding
+                     'kernel.randomize_va_space=2' to /etc/sysctl.conf or in a dedicated conf
+                     file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w kernel.randomize_va_space=2
             """
         )
         assert not success
 
     def test_unexpected_value(self, capsys):
         """Test the file containing an unexpected value."""
-        success, output = self.perform_check(capsys, read_effects="unexpected")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects="unexpected"
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- ASLR
-                    Failed to read /proc/sys/kernel/randomize_va_space, which controls ASLR
-                    (Address-Space Layout Randomization).
-                    It is recommended for this kernel parameter to be set to 2 (full
-                    randomization) for security reasons. This can be done by adding
-                    'kernel.randomize_va_space=2' to /etc/sysctl.conf or in a dedicated conf
-                    file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w kernel.randomize_va_space=2
+            ERROR -- ASLR
+                     Failed to read /proc/sys/kernel/randomize_va_space, which controls ASLR
+                     (Address-Space Layout Randomization).
+                     It is recommended for this kernel parameter to be set to 2 (full
+                     randomization) for security reasons. This can be done by adding
+                     'kernel.randomize_va_space=2' to /etc/sysctl.conf or in a dedicated conf
+                     file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w kernel.randomize_va_space=2
             """
         )
         assert not success
 
     def test_not_enabled(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
-        success, output = self.perform_check(capsys, read_effects="1")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(capsys, read_effects="1")
+        assert output == pretty_print(
             f"""\
-            WARN -- ASLR
-                    The kernel paramater kernel.randomize_va_space, which controls ASLR
-                    (Address-Space Layout Randomization), is set to 1.
-                    It is recommended for this kernel parameter to be set to 2 (full
-                    randomization) for security reasons. This can be done by adding
-                    'kernel.randomize_va_space=2' to /etc/sysctl.conf or in a dedicated conf
-                    file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w kernel.randomize_va_space=2
+             WARN -- ASLR
+                     The kernel paramater kernel.randomize_va_space, which controls ASLR
+                     (Address-Space Layout Randomization), is set to 1.
+                     It is recommended for this kernel parameter to be set to 2 (full
+                     randomization) for security reasons. This can be done by adding
+                     'kernel.randomize_va_space=2' to /etc/sysctl.conf or in a dedicated conf
+                     file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w kernel.randomize_va_space=2
             """
         )
         assert not success
@@ -1359,18 +1408,18 @@ class TestLSMs(_CheckTestBase):
         Test when config files read, they indicate LSMs are disabled or not
         installed.
         """
-        expected = textwrap.dedent(
+        expected = pretty_print(
             f"""\
-            INFO -- Linux Security Modules (No LSMs are enabled)
+             INFO -- Linux Security Modules (No LSMs are enabled)
             """
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, FileNotFoundError]
         )
         assert output == expected
         assert success
 
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=["", "SELINUX=disabled"]
         )
         assert output == expected
@@ -1378,38 +1427,38 @@ class TestLSMs(_CheckTestBase):
 
     def test_apparmor_enabled(self, capsys):
         """Test AppArmor config set to enabled."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             read_effects=["nvidia_modprobe (enforce)", FileNotFoundError],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- Linux Security Modules
-                    AppArmor is enabled. XRd is currently unable to run with the
-                    default docker profile, but can be run with
-                    '--security-opt apparmor=unconfined' or equivalent.
-                    However, some features might not work, such as ZTP.
+             WARN -- Linux Security Modules
+                     AppArmor is enabled. XRd is currently unable to run with the
+                     default docker profile, but can be run with
+                     '--security-opt apparmor=unconfined' or equivalent.
+                     However, some features might not work, such as ZTP.
             """
         )
         assert not success
 
     def test_selinux_enabled(self, capsys):
         """Test SELinux config set to enabled."""
-        expected = textwrap.dedent(
+        expected = pretty_print(
             f"""\
-            INFO -- Linux Security Modules
-                    SELinux is enabled. XRd is currently unable to run with the
-                    default policy, but can be run with
-                    '--security-opt label=disable' or equivalent.
+             INFO -- Linux Security Modules
+                     SELinux is enabled. XRd is currently unable to run with the
+                     default policy, but can be run with
+                     '--security-opt label=disable' or equivalent.
             """
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, "SELINUX=enforcing"]
         )
         assert output == expected
         assert success
 
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=["", "SELINUX=enforcing"]
         )
         assert output == expected
@@ -1417,20 +1466,20 @@ class TestLSMs(_CheckTestBase):
 
     def test_both_enabled(self, capsys):
         """Test the case where both AppArmor and SELinux are enabled."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             read_effects=["nvidia_modprobe (enforce)", "SELINUX=enforcing"],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- Linux Security Modules
-                    AppArmor is enabled. XRd is currently unable to run with the
-                    default docker profile, but can be run with
-                    '--security-opt apparmor=unconfined' or equivalent.
-                    However, some features might not work, such as ZTP.
-                    SELinux is enabled. XRd is currently unable to run with the
-                    default policy, but can be run with
-                    '--security-opt label=disable' or equivalent.
+             WARN -- Linux Security Modules
+                     AppArmor is enabled. XRd is currently unable to run with the
+                     default docker profile, but can be run with
+                     '--security-opt apparmor=unconfined' or equivalent.
+                     However, some features might not work, such as ZTP.
+                     SELinux is enabled. XRd is currently unable to run with the
+                     default policy, but can be run with
+                     '--security-opt label=disable' or equivalent.
             """
         )
         assert not success
@@ -1460,10 +1509,10 @@ class TestSocketParameters(_CheckTestBase):
             "67108864",
             "67108864",
         ]
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=minimum_values
         )
-        assert output == "PASS -- Socket kernel parameters (valid settings)\n"
+        assert output == " PASS -- Socket kernel parameters (valid settings)\n"
         assert success
 
     def test_higher_values(self, capsys):
@@ -1476,10 +1525,10 @@ class TestSocketParameters(_CheckTestBase):
             "67109864",
             "67118864",
         ]
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=higher_values
         )
-        assert output == "PASS -- Socket kernel parameters (valid settings)\n"
+        assert output == " PASS -- Socket kernel parameters (valid settings)\n"
         assert success
 
     def test_lower_values(self, capsys):
@@ -1492,37 +1541,39 @@ class TestSocketParameters(_CheckTestBase):
             "212992",
             "212992",
         ]
-        success, output = self.perform_check(capsys, read_effects=lower_values)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=lower_values
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- Socket kernel parameters
-                    The kernel socket parameters are insufficient for running XRd in a
-                    production deployment. They may be used in a lab deployment, but must
-                    be increased to the required minimums for production deployment.
-                    Lower values may result in XR IPC loss and unpredictable behavior,
-                    particularly at higher scale.
+             WARN -- Socket kernel parameters
+                     The kernel socket parameters are insufficient for running XRd in a
+                     production deployment. They may be used in a lab deployment, but must
+                     be increased to the required minimums for production deployment.
+                     Lower values may result in XR IPC loss and unpredictable behavior,
+                     particularly at higher scale.
 
-                    The required minimum settings are:
-                        net.core.netdev_max_backlog=300000
-                        net.core.optmem_max=67108864
-                        net.core.rmem_default=67108864
-                        net.core.rmem_max=67108864
-                        net.core.wmem_default=67108864
-                        net.core.wmem_max=67108864
+                     The required minimum settings are:
+                         net.core.netdev_max_backlog=300000
+                         net.core.optmem_max=67108864
+                         net.core.rmem_default=67108864
+                         net.core.rmem_max=67108864
+                         net.core.wmem_default=67108864
+                         net.core.wmem_max=67108864
 
-                    The current host settings are:
-                        net.core.netdev_max_backlog=1000
-                        net.core.optmem_max=20480
-                        net.core.rmem_default=212992
-                        net.core.rmem_max=212992
-                        net.core.wmem_default=212992
-                        net.core.wmem_max=212992
+                     The current host settings are:
+                         net.core.netdev_max_backlog=1000
+                         net.core.optmem_max=20480
+                         net.core.rmem_default=212992
+                         net.core.rmem_max=212992
+                         net.core.wmem_default=212992
+                         net.core.wmem_max=212992
 
-                    Values can be changed by adding e.g.
-                    'net.core.rmem_default=67108864' to /etc/sysctl.conf or
-                    in a dedicated conf file under /etc/sysctl.d/.
-                    Or for a temporary fix, running e.g.:
-                      sysctl -w net.core.rmem_default=67108864
+                     Values can be changed by adding e.g.
+                     'net.core.rmem_default=67108864' to /etc/sysctl.conf or
+                     in a dedicated conf file under /etc/sysctl.d/.
+                     Or for a temporary fix, running e.g.:
+                       sysctl -w net.core.rmem_default=67108864
             """
         )
         assert not success
@@ -1535,11 +1586,13 @@ class TestSocketParameters(_CheckTestBase):
             "67108864",
             Exception,
         ]
-        success, output = self.perform_check(capsys, read_effects=error_values)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=error_values
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- Socket kernel parameters
-                    Failed to read socket kernel parameter /proc/sys/net/core/rmem_max.
+            ERROR -- Socket kernel parameters
+                     Failed to read socket kernel parameter /proc/sys/net/core/rmem_max.
             """
         )
         assert not success
@@ -1554,105 +1607,107 @@ class TestUDPParameters(_CheckTestBase):
 
     def test_matching_values(self, capsys):
         """Test when all values precisely match, the check passes."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="1124736 10000000 67108864"
         )
-        assert output == "PASS -- UDP kernel parameters (valid settings)\n"
+        assert output == " PASS -- UDP kernel parameters (valid settings)\n"
         assert success
 
     def test_higher_values(self, capsys):
         """Test when values are higher, the check passes."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="1124737 20000000 67108868"
         )
-        assert output == "PASS -- UDP kernel parameters (valid settings)\n"
+        assert output == " PASS -- UDP kernel parameters (valid settings)\n"
         assert success
 
     def test_lower_values(self, capsys):
         """Test when values are lower, the check warns."""
 
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="767055 1022741 1534110"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- UDP kernel parameters
-                    The kernel UDP parameters are insufficient for running XRd in a
-                    production deployment. They may be used in a lab deployment, but must
-                    be increased to the required minimums for production deployment.
-                    Lower values may result in XR IPC loss and unpredictable behavior,
-                    particularly at higher scale.
+             WARN -- UDP kernel parameters
+                     The kernel UDP parameters are insufficient for running XRd in a
+                     production deployment. They may be used in a lab deployment, but must
+                     be increased to the required minimums for production deployment.
+                     Lower values may result in XR IPC loss and unpredictable behavior,
+                     particularly at higher scale.
 
-                    The required minimum settings are:
-                        net.ipv4.udp_mem=1124736 10000000 67108864
-                    The current host settings are:
-                        net.ipv4.udp_mem=767055 1022741 1534110
-                    Values can be changed by adding
-                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
-                    in a dedicated conf file under /etc/sysctl.d/.
-                    Or for a temporary fix, running:
-                      sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
+                     The required minimum settings are:
+                         net.ipv4.udp_mem=1124736 10000000 67108864
+                     The current host settings are:
+                         net.ipv4.udp_mem=767055 1022741 1534110
+                     Values can be changed by adding
+                     'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
+                     in a dedicated conf file under /etc/sysctl.d/.
+                     Or for a temporary fix, running:
+                       sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
         assert not success
 
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="1124736 1022741 1534110"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- UDP kernel parameters
-                    The kernel UDP parameters are insufficient for running XRd in a
-                    production deployment. They may be used in a lab deployment, but must
-                    be increased to the required minimums for production deployment.
-                    Lower values may result in XR IPC loss and unpredictable behavior,
-                    particularly at higher scale.
+             WARN -- UDP kernel parameters
+                     The kernel UDP parameters are insufficient for running XRd in a
+                     production deployment. They may be used in a lab deployment, but must
+                     be increased to the required minimums for production deployment.
+                     Lower values may result in XR IPC loss and unpredictable behavior,
+                     particularly at higher scale.
 
-                    The required minimum settings are:
-                        net.ipv4.udp_mem=1124736 10000000 67108864
-                    The current host settings are:
-                        net.ipv4.udp_mem=1124736 1022741 1534110
-                    Values can be changed by adding
-                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
-                    in a dedicated conf file under /etc/sysctl.d/.
-                    Or for a temporary fix, running:
-                      sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
+                     The required minimum settings are:
+                         net.ipv4.udp_mem=1124736 10000000 67108864
+                     The current host settings are:
+                         net.ipv4.udp_mem=1124736 1022741 1534110
+                     Values can be changed by adding
+                     'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
+                     in a dedicated conf file under /etc/sysctl.d/.
+                     Or for a temporary fix, running:
+                       sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
         assert not success
 
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="1124736 10000000 1534110"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- UDP kernel parameters
-                    The kernel UDP parameters are insufficient for running XRd in a
-                    production deployment. They may be used in a lab deployment, but must
-                    be increased to the required minimums for production deployment.
-                    Lower values may result in XR IPC loss and unpredictable behavior,
-                    particularly at higher scale.
+             WARN -- UDP kernel parameters
+                     The kernel UDP parameters are insufficient for running XRd in a
+                     production deployment. They may be used in a lab deployment, but must
+                     be increased to the required minimums for production deployment.
+                     Lower values may result in XR IPC loss and unpredictable behavior,
+                     particularly at higher scale.
 
-                    The required minimum settings are:
-                        net.ipv4.udp_mem=1124736 10000000 67108864
-                    The current host settings are:
-                        net.ipv4.udp_mem=1124736 10000000 1534110
-                    Values can be changed by adding
-                    'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
-                    in a dedicated conf file under /etc/sysctl.d/.
-                    Or for a temporary fix, running:
-                      sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
+                     The required minimum settings are:
+                         net.ipv4.udp_mem=1124736 10000000 67108864
+                     The current host settings are:
+                         net.ipv4.udp_mem=1124736 10000000 1534110
+                     Values can be changed by adding
+                     'net.ipv4.udp_mem=1124736 10000000 67108864' to /etc/sysctl.conf or
+                     in a dedicated conf file under /etc/sysctl.d/.
+                     Or for a temporary fix, running:
+                       sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
         assert not success
 
     def test_read_failure(self, capsys):
         """Test read failure on socket parameter"""
-        success, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=Exception
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- UDP kernel parameters
-                    Failed to read UDP kernel parameter /proc/sys/net/ipv4/udp_mem.
+            ERROR -- UDP kernel parameters
+                     Failed to read UDP kernel parameter /proc/sys/net/ipv4/udp_mem.
             """
         )
         assert not success
@@ -1677,44 +1732,46 @@ class TestRAM(_CheckTestBase):
 Mem:    17048223744 14166241280  2647126016    18145280   234856448  2745040896
 Swap:   31798079488  2008911872 29789167616
         """
-        success, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects=cmd_output
+        )
+        assert output == pretty_print(
             """\
-            PASS -- RAM
-                    Available RAM is 2.6 GiB.
-                    This is estimated to be sufficient for 1 XRd instance(s), although memory
-                    usage depends on the running configuration.
-                    Note that any swap that may be available is not included.
+             PASS -- RAM
+                     Available RAM is 2.6 GiB.
+                     This is estimated to be sufficient for 1 XRd instance(s), although memory
+                     usage depends on the running configuration.
+                     Note that any swap that may be available is not included.
             """
         )
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- RAM
-                    The command 'free -b' failed - unable to determine the available RAM on
-                    the host.
-                    Each XRd instance is expected to require 2 GiB of RAM for normal use.
+            ERROR -- RAM
+                     The command 'free -b' failed - unable to determine the available RAM on
+                     the host.
+                     Each XRd instance is expected to require 2 GiB of RAM for normal use.
             """
         )
         assert not success
 
     def test_no_match(self, capsys):
         """Test failure to parse free memory from the output."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- RAM
-                    Failed to parse the output from 'free -b' - unable to determine the
-                    available RAM on the host.
-                    Each XRd instance is expected to require 2 GiB of RAM for normal use.
+            ERROR -- RAM
+                     Failed to parse the output from 'free -b' - unable to determine the
+                     available RAM on the host.
+                     Each XRd instance is expected to require 2 GiB of RAM for normal use.
             """
         )
         assert not success
@@ -1726,26 +1783,28 @@ Swap:   31798079488  2008911872 29789167616
 Mem:    17048223744 14166241280  2647126016    18145280   234856448  1745040896
 Swap:   31798079488  2008911872 29789167616
         """
-        success, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects=cmd_output
+        )
+        assert output == pretty_print(
             """\
-            WARN -- RAM
-                    The available RAM on the host (1.6 GiB) may be insufficient to run XRd.
-                    Each XRd instance is expected to require 2 GiB of RAM for normal use.
-                    Note that this does not include any swap that may be available.
+             WARN -- RAM
+                     The available RAM on the host (1.6 GiB) may be insufficient to run XRd.
+                     Each XRd instance is expected to require 2 GiB of RAM for normal use.
+                     Note that this does not include any swap that may be available.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- RAM
-                    Unexpected error: test exception
+             FAIL -- RAM
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -1760,63 +1819,65 @@ class TestCPUExtensions(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="Flags: ssse3 sse4_1 sse4_2"
         )
-        assert output == f"PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
+        assert output == f" PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
         assert success
 
     def test_parse_error(self, capsys):
         """Test the case where the CPU extensions cannot be parsed."""
-        success, output = self.perform_check(capsys, cmd_effects="no match")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects="no match"
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- CPU extensions
-                    Unable to parse the output from 'lscpu' - unable to check
-                    for the required CPU extensions: sse4_1, sse4_2, ssse3
-                    All of these extensions must be installed.
+            ERROR -- CPU extensions
+                     Unable to parse the output from 'lscpu' - unable to check
+                     for the required CPU extensions: sse4_1, sse4_2, ssse3
+                     All of these extensions must be installed.
             """
         )
         assert not success
 
     def test_missing_extensions(self, capsys):
         """Test some extensions being missing."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="Flags: ssse3"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- CPU extensions
-                    Missing CPU extension(s): sse4_1, sse4_2
-                    Please install the missing extension(s).
+             FAIL -- CPU extensions
+                     Missing CPU extension(s): sse4_1, sse4_2
+                     Please install the missing extension(s).
             """
         )
         assert not success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- CPU extensions
-                    Unable to parse the output from 'lscpu' - unable to check
-                    for the required CPU extensions: sse4_1, sse4_2, ssse3
-                    All of these extensions must be installed.
+            ERROR -- CPU extensions
+                     Unable to parse the output from 'lscpu' - unable to check
+                     for the required CPU extensions: sse4_1, sse4_2, ssse3
+                     All of these extensions must be installed.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- CPU extensions
-                    Unexpected error: test exception
+             FAIL -- CPU extensions
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -1838,12 +1899,12 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 3",
             ]
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            PASS -- Hugepages (3 x 1GiB)
+             PASS -- Hugepages (3 x 1GiB)
             """
         )
         assert success
@@ -1857,14 +1918,14 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 2000",
             ]
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- Hugepages
-                    2MiB hugepages are available, but only 1GiB hugepages are
-                    supported for XRd deployment use cases.
+             WARN -- Hugepages
+                     2MiB hugepages are available, but only 1GiB hugepages are
+                     supported for XRd deployment use cases.
             """
         )
         assert not success
@@ -1878,13 +1939,13 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 1500",
             ]
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Hugepages
-                    3MiB hugepages are available, but XRd requires 1GiB hugepages.
+             FAIL -- Hugepages
+                     3MiB hugepages are available, but XRd requires 1GiB hugepages.
             """
         )
         assert not success
@@ -1901,14 +1962,14 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 2",
             ]
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Hugepages
-                    Only 2.0GiB of hugepage memory available, but XRd
-                    requires at least 3GiB.
+             FAIL -- Hugepages
+                     Only 2.0GiB of hugepage memory available, but XRd
+                     requires at least 3GiB.
             """
         )
         assert not success
@@ -1925,16 +1986,16 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 512",
             ]
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Hugepages
-                    2MiB hugepages are available, but only 1GiB hugepages are
-                    supported for XRd deployment use cases.
-                    Only 1.0GiB of hugepage memory available, but XRd
-                    requires at least 3GiB.
+             FAIL -- Hugepages
+                     2MiB hugepages are available, but only 1GiB hugepages are
+                     supported for XRd deployment use cases.
+                     Only 1.0GiB of hugepage memory available, but XRd
+                     requires at least 3GiB.
             """
         )
         assert not success
@@ -1948,56 +2009,60 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 0",
             ]
         )
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Hugepages
-                    Hugepages are not enabled. These are required for XRd to function correctly.
-                    To enable hugepages, see the instructions at:
-                    https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.
+             FAIL -- Hugepages
+                     Hugepages are not enabled. These are required for XRd to function correctly.
+                     To enable hugepages, see the instructions at:
+                     https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.
             """
         )
         assert not success
 
     def test_mem_oserror(self, capsys):
         """Test an OS error being raised when trying to read from /proc/meminfo."""
-        success, output = self.perform_check(capsys, read_effects=OSError)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=OSError
+        )
+        assert output == pretty_print(
             """\
-            WARN -- Hugepages
-                    Unable to parse the contents of /proc/meminfo - unable to check
-                    whether hugepages are enabled with 1GiB (recommended)
-                    or 2MiB hugepage size and at least 3GiB of available
-                    hugepage memory.
+            ERROR -- Hugepages
+                     Unable to parse the contents of /proc/meminfo - unable to check
+                     whether hugepages are enabled with 1GiB (recommended)
+                     or 2MiB hugepage size and at least 3GiB of available
+                     hugepage memory.
             """
         )
         assert not success
 
     def test_value_error(self, capsys):
         """Test a value error being raised."""
-        success, output = self.perform_check(capsys, read_effects=ValueError)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=ValueError
+        )
+        assert output == pretty_print(
             """\
-            WARN -- Hugepages
-                    Unable to parse the contents of /proc/meminfo - unable to check
-                    whether hugepages are enabled with 1GiB (recommended)
-                    or 2MiB hugepage size and at least 3GiB of available
-                    hugepage memory.
+            ERROR -- Hugepages
+                     Unable to parse the contents of /proc/meminfo - unable to check
+                     whether hugepages are enabled with 1GiB (recommended)
+                     or 2MiB hugepage size and at least 3GiB of available
+                     hugepage memory.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Hugepages
-                    Unexpected error: test exception
+             FAIL -- Hugepages
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -2021,13 +2086,13 @@ class TestGDPKernelDriver(_CheckTestBase):
     def test_both_loaded(self, capsys):
         """Test the case where both PCI drivers are loaded."""
         # Command (grep -q) simply returns 0.
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=["", None, "", None, None, None]
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            PASS -- Interface kernel driver
-                    Loaded PCI drivers: vfio-pci, igb_uio
+             PASS -- Interface kernel driver
+                     Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
         assert success
@@ -2035,7 +2100,7 @@ class TestGDPKernelDriver(_CheckTestBase):
     def test_both_builtin(self, capsys):
         """Test the case where both PCI drivers are builtin."""
         # Command (grep -q) simply returns 0.
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
@@ -2046,10 +2111,10 @@ class TestGDPKernelDriver(_CheckTestBase):
                 None,
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            PASS -- Interface kernel driver
-                    Loaded PCI drivers: vfio-pci, igb_uio
+             PASS -- Interface kernel driver
+                     Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
         assert success
@@ -2057,7 +2122,7 @@ class TestGDPKernelDriver(_CheckTestBase):
     def test_both_installed(self, capsys):
         """Test the case where vfio-pci is installed but not loaded."""
         # Command (grep -q) simply returns 0.
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
@@ -2068,19 +2133,19 @@ class TestGDPKernelDriver(_CheckTestBase):
                 "",
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Interface kernel driver
-                    None of the expected PCI drivers are loaded.
-                    The following PCI drivers are installed but not loaded: vfio-pci, igb_uio.
-                    Run 'modprobe <pci driver>' to load a driver.
+             FAIL -- Interface kernel driver
+                     None of the expected PCI drivers are loaded.
+                     The following PCI drivers are installed but not loaded: vfio-pci, igb_uio.
+                     Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert not success
 
     def test_both_missing(self, capsys):
         """Test the case where vfio-pci is not loaded."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
@@ -2091,19 +2156,19 @@ class TestGDPKernelDriver(_CheckTestBase):
                 subprocess.SubprocessError,
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Interface kernel driver
-                    No PCI drivers are loaded or installed.
-                    Must have either the vfio-pci or igb_uio kernel module loaded.
-                    It may be possible to install using your distro's package manager.
+             FAIL -- Interface kernel driver
+                     No PCI drivers are loaded or installed.
+                     Must have either the vfio-pci or igb_uio kernel module loaded.
+                     It may be possible to install using your distro's package manager.
             """
         )
         assert not success
 
     def test_loaded_and_installed(self, capsys):
         """Test where vfio-pci is loaded and igb_uio is installed but not loaded."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 "",
@@ -2114,19 +2179,19 @@ class TestGDPKernelDriver(_CheckTestBase):
                 "",
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            INFO -- Interface kernel driver
-                    The following PCI drivers are installed but not loaded: igb_uio.
-                    Loaded PCI drivers: vfio-pci.
-                    Run 'modprobe <pci driver>' to load a driver.
+             INFO -- Interface kernel driver
+                     The following PCI drivers are installed but not loaded: igb_uio.
+                     Loaded PCI drivers: vfio-pci.
+                     Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert success
 
     def test_installed_and_builtin(self, capsys):
         """Test where vfio-pci is installed but not loaded and igb_uio is builtin."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
@@ -2137,19 +2202,19 @@ class TestGDPKernelDriver(_CheckTestBase):
                 None,
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            INFO -- Interface kernel driver
-                    The following PCI drivers are installed but not loaded: vfio-pci.
-                    Loaded PCI drivers: igb_uio.
-                    Run 'modprobe <pci driver>' to load a driver.
+             INFO -- Interface kernel driver
+                     The following PCI drivers are installed but not loaded: vfio-pci.
+                     Loaded PCI drivers: igb_uio.
+                     Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert success
 
     def test_missing_and_installed(self, capsys):
         """Test where vfio-pci is missing and igb_uio is installed."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
@@ -2160,25 +2225,25 @@ class TestGDPKernelDriver(_CheckTestBase):
                 "",
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Interface kernel driver
-                    None of the expected PCI drivers are loaded.
-                    The following PCI drivers are installed but not loaded: igb_uio.
-                    Run 'modprobe <pci driver>' to load a driver.
+             FAIL -- Interface kernel driver
+                     None of the expected PCI drivers are loaded.
+                     The following PCI drivers are installed but not loaded: igb_uio.
+                     Run 'modprobe <pci driver>' to load a driver.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- Interface kernel driver
-                    Unexpected error: test exception
+             FAIL -- Interface kernel driver
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -2221,7 +2286,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2232,12 +2297,12 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                 ],
                 read_effects="N",
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            PASS -- IOMMU
-                    IOMMU enabled for vfio-pci with the following PCI device(s):
-                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
-                    device4 (0000:00:1f.2)
+             PASS -- IOMMU
+                     IOMMU enabled for vfio-pci with the following PCI device(s):
+                     device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
+                     device4 (0000:00:1f.2)
             """
         )
         assert success
@@ -2252,7 +2317,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         """
         iommu_devices = ["0000:00:00.0", "0000:00:01.0"]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2263,10 +2328,10 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                 ],
                 read_effects="N",
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- IOMMU
-                    IOMMU enabled for vfio-pci, but no network PCI devices found.
+             WARN -- IOMMU
+                     IOMMU enabled for vfio-pci, but no network PCI devices found.
             """
         )
         assert not success
@@ -2282,7 +2347,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2293,11 +2358,11 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                 ],
                 read_effects="N",
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- IOMMU
-                    The cmd 'lshw -businfo -c network' failed - unable to
-                    determine the network devices on the host. IOMMU is enabled.
+            ERROR -- IOMMU
+                     The cmd 'lshw -businfo -c network' failed - unable to
+                     determine the network devices on the host. IOMMU is enabled.
             """
         )
         assert not success
@@ -2317,7 +2382,7 @@ Bus info          Device      Class      Description
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2328,9 +2393,9 @@ Bus info          Device      Class      Description
                 ],
                 read_effects="N",
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- IOMMU (no PCI network devices found)
+             WARN -- IOMMU (no PCI network devices found)
             """
         )
         assert not success
@@ -2338,7 +2403,7 @@ Bus info          Device      Class      Description
     def test_iommu_directory_check_error(self, capsys):
         """Test the case where the IOMMU check throws an error."""
         with mock.patch("glob.glob", side_effect=Exception):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2348,11 +2413,11 @@ Bus info          Device      Class      Description
                 ],
                 read_effects="N",
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- IOMMU
-                    Unable to check if IOMMU is enabled by listing /sys/class/iommu/*/devices/*.
-                    IOMMU is recommended for security when using the vfio-pci kernel driver.
+            ERROR -- IOMMU
+                     Unable to check if IOMMU is enabled by listing /sys/class/iommu/*/devices/*.
+                     IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
         )
         assert not success
@@ -2360,7 +2425,7 @@ Bus info          Device      Class      Description
     def test_iommu_not_enabled(self, capsys):
         """Test the case where IOMMU is not enabled."""
         with mock.patch("glob.glob", return_value=[]):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2370,18 +2435,18 @@ Bus info          Device      Class      Description
                 ],
                 read_effects="N",
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- IOMMU
-                    The kernel module vfio-pci cannot be used, as IOMMU is not enabled.
-                    IOMMU is recommended for security when using the vfio-pci kernel driver.
+             WARN -- IOMMU
+                     The kernel module vfio-pci cannot be used, as IOMMU is not enabled.
+                     IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
         )
         assert not success
 
     def test_no_iommu_mode(self, capsys):
         """Test the case where vfio-pci is set up in no-IOMMU mode."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 "",
@@ -2391,10 +2456,10 @@ Bus info          Device      Class      Description
             ],
             read_effects="Y",
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            WARN -- IOMMU
-                    vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
+             WARN -- IOMMU
+                     vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
             """
         )
         assert not success
@@ -2424,7 +2489,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, output = self.perform_check(
+            success, error, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2435,19 +2500,19 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                 ],
                 read_effects=OSError,
             )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            PASS -- IOMMU
-                    IOMMU enabled for vfio-pci with the following PCI device(s):
-                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
-                    device4 (0000:00:1f.2)
+             PASS -- IOMMU
+                     IOMMU enabled for vfio-pci with the following PCI device(s):
+                     device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
+                     device4 (0000:00:1f.2)
             """
         )
         assert success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 "",
@@ -2457,37 +2522,39 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             ],
             read_effects=Exception("test exception"),
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            FAIL -- IOMMU
-                    Unexpected error: test exception
+             FAIL -- IOMMU
+                     Unexpected error: test exception
             """
         )
         assert not success
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, failed_deps=self.deps
+        )
+        assert output == pretty_print(
             """\
-            SKIP -- IOMMU
-                    Skipped due to failed checks: Interface kernel driver
+             SKIP -- IOMMU
+                     Skipped due to failed checks: Interface kernel driver
             """
         )
         assert not success
 
     def test_vfio_pci_not_enabled(self, capsys):
         """Test for when vfio-pci is not enabled."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError,
                 subprocess.SubprocessError,
             ],
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            INFO -- IOMMU (vfio-pci driver unavailable)
+             INFO -- IOMMU (vfio-pci driver unavailable)
             """
         )
         assert success
@@ -2497,13 +2564,13 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         Test a failure that would result in a WARN result, but with igb_uio
         enabled is just INFO.
         """
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=["", None, "", None], read_effects="Y"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             f"""\
-            INFO -- IOMMU
-                    vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
+             INFO -- IOMMU
+                     vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
             """
         )
         assert success
@@ -2518,59 +2585,65 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, read_effects="2147483648")
-        assert output == "PASS -- Shared memory pages max size (2.0 GiB)\n"
+        success, error, output = self.perform_check(
+            capsys, read_effects="2147483648"
+        )
+        assert output == " PASS -- Shared memory pages max size (2.0 GiB)\n"
         assert success
 
     def test_oserror(self, capsys):
         """Test the OS error case."""
-        success, output = self.perform_check(capsys, read_effects=OSError)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=OSError
+        )
+        assert output == pretty_print(
             """\
-            WARN -- Shared memory pages max size
-                    Unable to read the contents of /proc/sys/kernel/shmmax - unable to
-                    determine the maximum size of shared memory pages.
-                    At least 2 GiB are required.
+            ERROR -- Shared memory pages max size
+                     Unable to read the contents of /proc/sys/kernel/shmmax - unable to
+                     determine the maximum size of shared memory pages.
+                     At least 2 GiB are required.
             """
         )
         assert not success
 
     def test_failure(self, capsys):
         """Test the OS error case."""
-        success, output = self.perform_check(capsys, read_effects="1073741824")
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects="1073741824"
+        )
+        assert output == pretty_print(
             """\
-            FAIL -- Shared memory pages max size
-                    The maximum size of shared memory pages is 1.0 GiB,
-                    but at least 2 GiB are required.
+             FAIL -- Shared memory pages max size
+                     The maximum size of shared memory pages is 1.0 GiB,
+                     but at least 2 GiB are required.
             """
         )
         assert not success
 
     def test_exception(self, capsys):
         """Test the Exception case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects="not an integer"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- Shared memory pages max size
-                    Unable to parse the contents of /proc/sys/kernel/shmmax - unable to
-                    determine the maximum size of shared memory pages.
-                    At least 2 GiB are required.
+            ERROR -- Shared memory pages max size
+                     Unable to parse the contents of /proc/sys/kernel/shmmax - unable to
+                     determine the maximum size of shared memory pages.
+                     At least 2 GiB are required.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, read_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Shared memory pages max size
-                    Unexpected error: test exception
+             FAIL -- Shared memory pages max size
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -2590,65 +2663,65 @@ class TestDockerClient(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="Docker version 18.0.4"
         )
-        assert output == "PASS -- Docker client (version 18.0.4)\n"
+        assert output == " PASS -- Docker client (version 18.0.4)\n"
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker client
-                    Docker client not correctly installed on the host (checked with
-                    'docker --version').
-                    See installation instructions at https://docs.docker.com/engine/install/.
-                    At least version 18.0 is required for XRd.
+             FAIL -- Docker client
+                     Docker client not correctly installed on the host (checked with
+                     'docker --version').
+                     See installation instructions at https://docs.docker.com/engine/install/.
+                     At least version 18.0 is required for XRd.
             """
         )
         assert not success
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- Docker client
-                    Unable to parse Docker client version from 'docker --version'.
-                    At least version 18.0 is required for XRd.
+            ERROR -- Docker client
+                     Unable to parse Docker client version from 'docker --version'.
+                     At least version 18.0 is required for XRd.
             """
         )
         assert not success
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="Docker version 17.11"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker client
-                    Docker version must be at least 18.0, current client version is 17.11.
-                    See installation instructions at https://docs.docker.com/engine/install/.
+             FAIL -- Docker client
+                     Docker version must be at least 18.0, current client version is 17.11.
+                     See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker client
-                    Unexpected error: test exception
+             FAIL -- Docker client
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -2664,73 +2737,79 @@ class TestDockerDaemon(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, cmd_effects='"18.0.4"')
-        assert output == "PASS -- Docker daemon (running, version 18.0.4)\n"
+        success, error, output = self.perform_check(
+            capsys, cmd_effects='"18.0.4"'
+        )
+        assert output == " PASS -- Docker daemon (running, version 18.0.4)\n"
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker daemon
-                    Unable to connect to the Docker daemon (checked with
-                    "docker version -f '{{json .Server.Version}}'").
-                    This could be because it isn't running, or due to insufficient permissions.
-                    See installation instructions at https://docs.docker.com/engine/install/.
+             FAIL -- Docker daemon
+                     Unable to connect to the Docker daemon (checked with
+                     "docker version -f '{{json .Server.Version}}'").
+                     This could be because it isn't running, or due to insufficient permissions.
+                     See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
         assert not success
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- Docker daemon
-                    Unable to parse Docker server version from
-                    "docker version -f '{{json .Server.Version}}'".
-                    At least version 18.0 is required for XRd.
+            ERROR -- Docker daemon
+                     Unable to parse Docker server version from
+                     "docker version -f '{{json .Server.Version}}'".
+                     At least version 18.0 is required for XRd.
             """
         )
         assert not success
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, output = self.perform_check(capsys, cmd_effects='"17.11"')
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, cmd_effects='"17.11"'
+        )
+        assert output == pretty_print(
             """\
-            FAIL -- Docker daemon
-                    Docker version must be at least 18.0, current server version is 17.11.
-                    See installation instructions at https://docs.docker.com/engine/install/.
+             FAIL -- Docker daemon
+                     Docker version must be at least 18.0, current server version is 17.11.
+                     See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker daemon
-                    Unexpected error: test exception
+             FAIL -- Docker daemon
+                     Unexpected error: test exception
             """
         )
         assert not success
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, failed_deps=self.deps
+        )
+        assert output == pretty_print(
             """\
-            SKIP -- Docker daemon
-                    Skipped due to failed checks: Docker client
+             SKIP -- Docker daemon
+                     Skipped due to failed checks: Docker client
             """
         )
         assert not success
@@ -2746,62 +2825,64 @@ class TestDtypeSupport(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="Supports d_type: true"
         )
-        assert output == "PASS -- Docker supports d_type\n"
+        assert output == " PASS -- Docker supports d_type\n"
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker supports d_type
-                    'docker info' command failed.
-                    Unable to check filesystem support for d_type (directory entry type).
-                    This is required for XRd to avoid issues with creating and deleting files.
+             FAIL -- Docker supports d_type
+                     'docker info' command failed.
+                     Unable to check filesystem support for d_type (directory entry type).
+                     This is required for XRd to avoid issues with creating and deleting files.
             """
         )
         assert not success
 
     def test_no_dtype_match(self, capsys):
         """Test failure to match on d_type support in the output."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker supports d_type
-                    Docker is using a backing filesystem that does not support d_type
-                    (directory entry type).
-                    This is required for XRd to avoid issues with creating and deleting files.
+             FAIL -- Docker supports d_type
+                     Docker is using a backing filesystem that does not support d_type
+                     (directory entry type).
+                     This is required for XRd to avoid issues with creating and deleting files.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- Docker supports d_type
-                    Unexpected error: test exception
+             FAIL -- Docker supports d_type
+                     Unexpected error: test exception
             """
         )
         assert not success
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, failed_deps=self.deps
+        )
+        assert output == pretty_print(
             """\
-            SKIP -- Docker supports d_type
-                    Skipped due to failed checks: Docker daemon
+             SKIP -- Docker supports d_type
+                     Skipped due to failed checks: Docker daemon
             """
         )
         assert not success
@@ -2821,63 +2902,63 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="docker-compose version 1.18.0"
         )
-        assert output == "PASS -- docker-compose (version 1.18.0)\n"
+        assert output == " PASS -- docker-compose (version 1.18.0)\n"
         assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- docker-compose
-                    Docker Compose not found (checked with 'docker-compose --version').
-                    Launching XRd topologies with xr-compose requires docker-compose.
-                    See installation instructions at https://docs.docker.com/compose/install/.
+             FAIL -- docker-compose
+                     Docker Compose not found (checked with 'docker-compose --version').
+                     Launching XRd topologies with xr-compose requires docker-compose.
+                     See installation instructions at https://docs.docker.com/compose/install/.
             """
         )
         assert not success
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            WARN -- docker-compose
-                    Unable to parse Docker Compose version, at least version 1.18 is required.
+            ERROR -- docker-compose
+                     Unable to parse Docker Compose version, at least version 1.18 is required.
             """
         )
         assert not success
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects="docker-compose version 1.17.10"
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- docker-compose
-                    Docker Compose version must be at least 1.18, current version is 1.17.10.
-                    See installation instructions at https://docs.docker.com/compose/install/.
+             FAIL -- docker-compose
+                     Docker Compose version must be at least 1.18, current version is 1.17.10.
+                     See installation instructions at https://docs.docker.com/compose/install/.
             """
         )
         assert not success
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, output = self.perform_check(
+        success, error, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == textwrap.dedent(
+        assert output == pretty_print(
             """\
-            FAIL -- docker-compose
-                    Unexpected error: test exception
+             FAIL -- docker-compose
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -2892,19 +2973,19 @@ class TestPyYAML(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         with mock.patch("builtins.__import__"):
-            success, output = self.perform_check(capsys)
-        assert output == f"PASS -- PyYAML (installed)\n"
+            success, error, output = self.perform_check(capsys)
+        assert output == f" PASS -- PyYAML (installed)\n"
         assert success
 
     def test_unavailable(self, capsys):
         """Test yaml not being available."""
         with mock.patch("builtins.__import__", side_effect=ImportError):
-            success, output = self.perform_check(capsys)
-        assert output == textwrap.dedent(
+            success, error, output = self.perform_check(capsys)
+        assert output == pretty_print(
             f"""\
-            FAIL -- PyYAML
-                    PyYAML Python package not installed - required for running xr-compose.
-                    Install with 'python3 -m pip install pyyaml'.
+             FAIL -- PyYAML
+                     PyYAML Python package not installed - required for running xr-compose.
+                     Install with 'python3 -m pip install pyyaml'.
             """
         )
         assert not success
@@ -2914,11 +2995,11 @@ class TestPyYAML(_CheckTestBase):
         with mock.patch(
             "builtins.__import__", side_effect=Exception("test exception")
         ):
-            success, output = self.perform_check(capsys)
-        assert output == textwrap.dedent(
+            success, error, output = self.perform_check(capsys)
+        assert output == pretty_print(
             f"""\
-            FAIL -- PyYAML
-                    Unexpected error: test exception
+             FAIL -- PyYAML
+                     Unexpected error: test exception
             """
         )
         assert not success
@@ -2936,49 +3017,55 @@ class TestBridgeIptables(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, output = self.perform_check(capsys, read_effects=["0", "0"])
-        assert output == "PASS -- Bridge iptables (disabled)\n"
+        success, error, output = self.perform_check(
+            capsys, read_effects=["0", "0"]
+        )
+        assert output == " PASS -- Bridge iptables (disabled)\n"
         assert success
 
     def test_not_disabled(self, capsys):
         """Test bridge iptables not being disabled."""
-        success, output = self.perform_check(capsys, read_effects=["0", "1"])
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=["0", "1"]
+        )
+        assert output == pretty_print(
             f"""\
-            FAIL -- Bridge iptables
-                    For xr-compose to be able to use Docker bridges, bridge IP tables must
-                    be disabled. Note that there may be security considerations associated
-                    with doing so.
-                    Bridge IP tables can be disabled by setting the kernel parameters
-                    net.bridge.bridge-nf-call-iptables and net.bridge.bridge-nf-call-ip6tables
-                    to 0. These can be modified by adding 'net.bridge.bridge-nf-call-iptables=0'
-                    and 'net.bridge.bridge-nf-call-ip6tables=0' to /etc/sysctl.conf or in a
-                    dedicated conf file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w net.bridge.bridge-nf-call-iptables=0
-                      sysctl -w net.bridge.bridge-nf-call-ip6tables=0
+             FAIL -- Bridge iptables
+                     For xr-compose to be able to use Docker bridges, bridge IP tables must
+                     be disabled. Note that there may be security considerations associated
+                     with doing so.
+                     Bridge IP tables can be disabled by setting the kernel parameters
+                     net.bridge.bridge-nf-call-iptables and net.bridge.bridge-nf-call-ip6tables
+                     to 0. These can be modified by adding 'net.bridge.bridge-nf-call-iptables=0'
+                     and 'net.bridge.bridge-nf-call-ip6tables=0' to /etc/sysctl.conf or in a
+                     dedicated conf file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w net.bridge.bridge-nf-call-iptables=0
+                       sysctl -w net.bridge.bridge-nf-call-ip6tables=0
             """
         )
         assert not success
 
     def test_error(self, capsys):
         """Test error being raised."""
-        success, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == textwrap.dedent(
+        success, error, output = self.perform_check(
+            capsys, read_effects=Exception
+        )
+        assert output == pretty_print(
             f"""\
-            WARN -- Bridge iptables
-                    Failed to read iptables settings under /proc/sys/net/bridge/.
-                    For xr-compose to be able to use Docker bridges, bridge IP tables must
-                    be disabled. Note that there may be security considerations associated
-                    with doing so.
-                    Bridge IP tables can be disabled by setting the kernel parameters
-                    net.bridge.bridge-nf-call-iptables and net.bridge.bridge-nf-call-ip6tables
-                    to 0. These can be modified by adding 'net.bridge.bridge-nf-call-iptables=0'
-                    and 'net.bridge.bridge-nf-call-ip6tables=0' to /etc/sysctl.conf or in a
-                    dedicated conf file under /etc/sysctl.d/.
-                    For a temporary fix, run:
-                      sysctl -w net.bridge.bridge-nf-call-iptables=0
-                      sysctl -w net.bridge.bridge-nf-call-ip6tables=0
+            ERROR -- Bridge iptables
+                     Failed to read iptables settings under /proc/sys/net/bridge/.
+                     For xr-compose to be able to use Docker bridges, bridge IP tables must
+                     be disabled. Note that there may be security considerations associated
+                     with doing so.
+                     Bridge IP tables can be disabled by setting the kernel parameters
+                     net.bridge.bridge-nf-call-iptables and net.bridge.bridge-nf-call-ip6tables
+                     to 0. These can be modified by adding 'net.bridge.bridge-nf-call-iptables=0'
+                     and 'net.bridge.bridge-nf-call-ip6tables=0' to /etc/sysctl.conf or in a
+                     dedicated conf file under /etc/sysctl.d/.
+                     For a temporary fix, run:
+                       sysctl -w net.bridge.bridge-nf-call-iptables=0
+                       sysctl -w net.bridge.bridge-nf-call-ip6tables=0
             """
         )
         assert not success
