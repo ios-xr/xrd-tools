@@ -673,7 +673,7 @@ def check_realtime_group_sched() -> CheckFuncReturn:
                     return CheckState.SUCCESS, "disabled at runtime"
         except Exception:
             return (
-                CheckState.WARNING,
+                CheckState.ERROR,
                 f"Failed to read {kernel_sched_rt_path}, unable to check if\n"
                 f"real-time group scheduling is disabled.\n" + recommendation,
             )
@@ -1620,7 +1620,6 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
     print_heading("Platform checks")
     print_subheading("base checks")
     base_success, base_check_errors = perform_checks(BASE_CHECKS)
-
     for platform, checks in PLATFORM_CHECKS_MAP.items():
         print_subheading(f"{platform} checks")
         platform_success, plat_check_errors = perform_checks(checks)
