@@ -19,7 +19,7 @@ jobs:
         python-version: ["3.7", "3.11"]
     name: 'tests (python ${{ matrix.python-version }})'
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@main
         with:
           fetch-depth: 0
 
