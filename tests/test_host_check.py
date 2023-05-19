@@ -89,7 +89,7 @@ def perform_check(
     :param failed_deps:
         Any dependencies to treat as failed.
     :return:
-        The result of the check, whether the check errored, and the output from the check.
+        The overall result of the check, and the output from the check.
     """
     check = [c for c in CHECKS_BY_GROUP[group] if c.name == name][0]
     checks = []
