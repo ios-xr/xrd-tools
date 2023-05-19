@@ -10,9 +10,6 @@ on:
       - 'docs/**'
       - 'templates/**'
       - 'commit-check'
-  push:
-    branches:
-      - 'gh-actions*'
 jobs:
   python:
     runs-on: ubuntu-latest

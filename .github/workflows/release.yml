@@ -3,8 +3,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-    branches:
-      - 'gh-actions-release*'
 jobs:
   create-release:
     runs-on: ubuntu-latest

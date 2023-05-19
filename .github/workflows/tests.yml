@@ -10,16 +10,13 @@ on:
       - 'docs/**'
       - 'templates/**'
       - 'commit-check'
-  push:
-    branches:
-      - 'gh-actions*'
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.7", "3.10"]
+        python-version: ["3.7", "3.11"]
     name: 'tests (python ${{ matrix.python-version }})'
     steps:
       - uses: actions/checkout@master
@@ -37,4 +34,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run UT
-        run: pytest tests/ -v
+        run: pytest tests/ -v --cov scripts/
