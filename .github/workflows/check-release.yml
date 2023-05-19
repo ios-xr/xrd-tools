@@ -2,9 +2,6 @@ name: check-release
 on:
   schedule:
     - cron: "0 8 * * *"
-  push:
-    branches:
-      - "ensure-release"
 jobs:
   check-release:
     runs-on: ubuntu-latest
