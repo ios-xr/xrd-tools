@@ -18,7 +18,7 @@ jobs:
           changelog_version=$(grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | head -n1)
           echo "Top version found in CHANGELOG.md: $changelog_version"
           release_version=$(curl https://api.github.com/repos/ios-xr/xrd-tools/releases/latest -s | jq .tag_name | tr -d '"')
-          echo "Latest release version from https://api.github.com/repos/ios-xr/xrd-tools/releases/latest: $release_version"
+          echo "Latest release version from 'https://api.github.com/repos/ios-xr/xrd-tools/releases/latest': $release_version"
           if [[ $release_version != $changelog_version ]]; then
               echo "No release for $changelog_version (found in CHANGELOG.md), latest is $release_version" >&2
               exit 1
