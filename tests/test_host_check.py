@@ -66,7 +66,7 @@ def perform_check(
     files: Optional[Union[Tuple[str, str], List[Tuple[str, str]]]] = None,
     deps: Optional[List[str]] = None,
     failed_deps: Optional[List[str]] = None,
-) -> Tuple[bool, bool, str]:
+) -> Tuple[host_check.OverallCheckState, str]:
     """
     Perform a single host check and return whether it succeeded and the output.
 
@@ -152,7 +152,7 @@ def perform_check(
             )
 
         # Run the host check.
-        succeeded, errored = host_check.perform_checks(checks)
+        result = host_check.perform_checks(checks)
 
     # Check the expected commands were run.
     if cmds:
@@ -178,7 +178,7 @@ def perform_check(
         lines = lines[len(deps) :]
         output = "".join(lines)
 
-    return succeeded, errored, output
+    return result, output
 
 
 def pretty_print(msg: str) -> str:
@@ -203,17 +203,18 @@ class TestFlow:
         failing_checks: List[str] = [],
         erroring_checks: List[str] = [],
     ) -> Tuple[int, str]:
-        def perform_checks_mock(checks) -> Tuple[bool, bool]:
+        def perform_checks_mock(checks) -> host_check.OverallCheckState:
             checks_list = [c.name for c in checks]
             print("Checks:", ", ".join(checks_list))
-            success = not (set(checks_list) & set(failing_checks))
-            if erroring_checks:
-                errored_checks = set(erroring_checks).issubset(
-                    set(checks_list)
-                )
+            failures = bool(set(checks_list) & set(failing_checks))
+            errors = bool(set(checks_list) & set(erroring_checks))
+            if errors:
+                result = host_check.OverallCheckState.ERRORS
+            elif failures:
+                result = host_check.OverallCheckState.FAILURES
             else:
-                errored_checks = False
-            return success, errored_checks
+                result = host_check.OverallCheckState.ALL_SUCCEEDED
+            return result
 
         with pytest.raises(SystemExit) as exc_info:
             with mock.patch.object(
@@ -723,7 +724,7 @@ class _CheckTestBase:
         cmd_effects=None,
         read_effects=None,
         failed_deps=None,
-    ) -> Tuple[bool, bool, str]:
+    ) -> Tuple[host_check.OverallCheckState, str]:
         """
         Perform the class's check with the given effects for each subproc cmd.
 
@@ -782,28 +783,24 @@ class TestArch(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the architecture being correct."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="x86_64"
-        )
+        result, output = self.perform_check(capsys, cmd_effects="x86_64")
         assert output == " PASS -- CPU architecture (x86_64)\n"
-        assert success
+        assert result.is_success()
 
     def test_incorrect_arch(self, capsys):
         """Test the incorrect architecture case."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="arm64"
-        )
+        result, output = self.perform_check(capsys, cmd_effects="arm64")
         assert output == pretty_print(
             f"""\
              FAIL -- CPU architecture
                      The CPU architecture is arm64, but XRd only supports: x86_64.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -813,7 +810,7 @@ class TestArch(_CheckTestBase):
                      XRd supports the following architectures: x86_64.
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestCPUCores(_CheckTestBase):
@@ -825,17 +822,13 @@ class TestCPUCores(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="CPU(s): 16 "
-        )
+        result, output = self.perform_check(capsys, cmd_effects="CPU(s): 16 ")
         assert output == f" PASS -- CPU cores (16)\n"
-        assert success
+        assert result.is_success()
 
     def test_too_few_cpus(self, capsys):
         """Test there being too few available CPU cores."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="CPU(s): 1 "
-        )
+        result, output = self.perform_check(capsys, cmd_effects="CPU(s): 1 ")
         assert output == pretty_print(
             f"""\
              FAIL -- CPU cores
@@ -843,11 +836,11 @@ class TestCPUCores(_CheckTestBase):
                      but at least 2 CPU cores are required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_parse_error(self, capsys):
         """Test error when parsing output from 'lscpu'."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="bananas taste awesome"
         )
         assert output == pretty_print(
@@ -858,11 +851,11 @@ class TestCPUCores(_CheckTestBase):
                      At least 2 CPU cores are required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -872,11 +865,11 @@ class TestCPUCores(_CheckTestBase):
                      At least 2 CPU cores are required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -885,11 +878,11 @@ class TestCPUCores(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_timeout_error(self, capsys):
         """Test timeout error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
         )
@@ -899,7 +892,7 @@ class TestCPUCores(_CheckTestBase):
                      Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestKernelVersion(_CheckTestBase):
@@ -911,13 +904,13 @@ class TestKernelVersion(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(capsys, cmd_effects="4.1")
+        result, output = self.perform_check(capsys, cmd_effects="4.1")
         assert output == " PASS -- Kernel version (4.1)\n"
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -926,11 +919,11 @@ class TestKernelVersion(_CheckTestBase):
                      Unable to check the kernel version - must be at least version 4.0
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
         assert output == pretty_print(
@@ -939,24 +932,22 @@ class TestKernelVersion(_CheckTestBase):
                      Unable to check the kernel version - must be at least version 4.0
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="3.9.8"
-        )
+        result, output = self.perform_check(capsys, cmd_effects="3.9.8")
         assert output == pretty_print(
             """\
              FAIL -- Kernel version
                      The kernel version is 3.9, but at least version 4.0 is required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_rhel83_version(self, capsys):
         """Test the version being 4.18.0-240 on RHEL/CentOS 8.3."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.el8"
         )
         assert output == pretty_print(
@@ -967,23 +958,23 @@ class TestKernelVersion(_CheckTestBase):
                      Please upgrade/downgrade to a RHEL/CentOS version higher or lower than 8.3
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_rhel82_version(self, capsys):
         """Test the version being 4.18.0-193 on RHEL/CentOS 8.2."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-193.el8"
         )
         assert output == " PASS -- Kernel version (4.18)\n"
-        assert success
+        assert result.is_success()
 
     def test_generic_os_with_rhel83_kernel_version(self, capsys):
         """Test the version being 4.18.0-240 on a generic operating system."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.generic"
         )
         assert output == " PASS -- Kernel version (4.18)\n"
-        assert success
+        assert result.is_success()
 
 
 class TestBaseKernelModules(_CheckTestBase):
@@ -999,20 +990,18 @@ class TestBaseKernelModules(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects=["", ""]
-        )
+        result, output = self.perform_check(capsys, cmd_effects=["", ""])
         assert output == pretty_print(
             f"""\
              PASS -- Base kernel modules
                      Installed module(s): dummy, nf_tables
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_missing_nf_tables(self, capsys):
         """Test missing the nf_tables kernel module."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=["", subprocess.SubprocessError(1, "")]
         )
         assert output == pretty_print(
@@ -1023,11 +1012,11 @@ class TestBaseKernelModules(_CheckTestBase):
                      It may be possible to install using your distro's package manager.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_missing_dummy(self, capsys):
         """Test missing the dummy kernel module."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=[subprocess.SubprocessError(1, ""), ""]
         )
         assert output == pretty_print(
@@ -1038,11 +1027,11 @@ class TestBaseKernelModules(_CheckTestBase):
                      It may be possible to install using your distro's package manager.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=["", Exception("test exception")]
         )
         assert output == pretty_print(
@@ -1051,11 +1040,11 @@ class TestBaseKernelModules(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_timeout_error(self, capsys):
         """Test timeout error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
         )
@@ -1065,20 +1054,18 @@ class TestBaseKernelModules(_CheckTestBase):
                      Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, error, output = self.perform_check(
-            capsys, failed_deps=self.deps
-        )
+        result, output = self.perform_check(capsys, failed_deps=self.deps)
         assert output == pretty_print(
             f"""\
              SKIP -- Base kernel modules
                      Skipped due to failed checks: Kernel version
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestCgroups(_CheckTestBase):
@@ -1104,7 +1091,7 @@ class TestCgroups(_CheckTestBase):
 
     def test_v1_success(self, capsys):
         """Test the cgroups v1 success case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1121,11 +1108,11 @@ class TestCgroups(_CheckTestBase):
              PASS -- Cgroups (v1)
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_unknown_version(self, capsys):
         """Test the case where the cgroups version is unrecognised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[mock.Mock(returncode=1), mock.Mock(returncode=1)],
         )
@@ -1136,12 +1123,12 @@ class TestCgroups(_CheckTestBase):
                      contain cgroup v1 mounts.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_v2_info(self, capsys):
         """Test the case where v2 cgroups are in use."""
         with mock.patch("builtins.open", mock.mock_open(read_data="memory")):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys, cmd_effects=[mock.Mock(returncode=0), None]
             )
         assert output == pretty_print(
@@ -1150,11 +1137,11 @@ class TestCgroups(_CheckTestBase):
                      Cgroups v2 is in use - this is not supported for production environments.
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -1164,11 +1151,11 @@ class TestCgroups(_CheckTestBase):
                      contain cgroup v1 mounts.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_systemd_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1190,11 +1177,11 @@ class TestCgroups(_CheckTestBase):
                          sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_pids_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1213,11 +1200,11 @@ class TestCgroups(_CheckTestBase):
                      These mounts are required to run XRd.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_systemd_cpu_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 mock.Mock(returncode=1),
@@ -1239,7 +1226,7 @@ class TestCgroups(_CheckTestBase):
                          sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class _TestInotifyLimitsBase(_CheckTestBase):
@@ -1250,22 +1237,18 @@ class _TestInotifyLimitsBase(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="10000000"
-        )
+        result, output = self.perform_check(capsys, read_effects="10000000")
         assert output == pretty_print(
             f"""\
              PASS -- {self.check_name}
                      10000000 - this is expected to be sufficient for 2500 XRd instance(s).
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_too_low(self, capsys):
         """Test the limit being too low."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="3000"
-        )
+        result, output = self.perform_check(capsys, read_effects="3000")
         assert output == pretty_print(
             f"""\
              FAIL -- {self.check_name}
@@ -1278,13 +1261,11 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                        sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_warning_level(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="7000"
-        )
+        result, output = self.perform_check(capsys, read_effects="7000")
         assert output == pretty_print(
             f"""\
              WARN -- {self.check_name}
@@ -1297,13 +1278,11 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                        sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_error(self, capsys):
         """Test error being raised."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=Exception
-        )
+        result, output = self.perform_check(capsys, read_effects=Exception)
         assert output == pretty_print(
             f"""\
             ERROR -- {self.check_name}
@@ -1317,7 +1296,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                        sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestInotifyInstances(_TestInotifyLimitsBase):
@@ -1345,28 +1324,24 @@ class TestCorePattern(_CheckTestBase):
 
     def test_managed_by_xr(self, capsys):
         """Test the managed by XR case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="no leading pipe"
         )
         assert output == " INFO -- Core pattern (core files managed by XR)\n"
-        assert success
+        assert result.is_success()
 
     def test_managed_by_host(self, capsys):
         """Test the managed by host case."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="| piped"
-        )
+        result, output = self.perform_check(capsys, read_effects="| piped")
         assert (
             output
             == " INFO -- Core pattern (core files managed by the host)\n"
         )
-        assert success
+        assert result.is_success()
 
     def test_error(self, capsys):
         """Test error being raised."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=Exception
-        )
+        result, output = self.perform_check(capsys, read_effects=Exception)
         assert output == pretty_print(
             f"""\
              INFO -- Core pattern
@@ -1374,7 +1349,7 @@ class TestCorePattern(_CheckTestBase):
                      whether core files are managed by XR or the host.
             """
         )
-        assert success
+        assert result.is_success()
 
 
 class TestASLR(_CheckTestBase):
@@ -1386,15 +1361,13 @@ class TestASLR(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(capsys, read_effects="2")
+        result, output = self.perform_check(capsys, read_effects="2")
         assert output == " PASS -- ASLR (full randomization)\n"
-        assert success
+        assert result.is_success()
 
     def test_read_error(self, capsys):
         """Test the limit being too low."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=Exception
-        )
+        result, output = self.perform_check(capsys, read_effects=Exception)
         assert output == pretty_print(
             f"""\
             ERROR -- ASLR
@@ -1408,13 +1381,11 @@ class TestASLR(_CheckTestBase):
                        sysctl -w kernel.randomize_va_space=2
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_value(self, capsys):
         """Test the file containing an unexpected value."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="unexpected"
-        )
+        result, output = self.perform_check(capsys, read_effects="unexpected")
         assert output == pretty_print(
             f"""\
             ERROR -- ASLR
@@ -1428,11 +1399,11 @@ class TestASLR(_CheckTestBase):
                        sysctl -w kernel.randomize_va_space=2
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_not_enabled(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
-        success, error, output = self.perform_check(capsys, read_effects="1")
+        result, output = self.perform_check(capsys, read_effects="1")
         assert output == pretty_print(
             f"""\
              WARN -- ASLR
@@ -1446,7 +1417,7 @@ class TestASLR(_CheckTestBase):
                        sysctl -w kernel.randomize_va_space=2
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestLSMs(_CheckTestBase):
@@ -1466,21 +1437,21 @@ class TestLSMs(_CheckTestBase):
              INFO -- Linux Security Modules (No LSMs are enabled)
             """
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, FileNotFoundError]
         )
         assert output == expected
-        assert success
+        assert result.is_success()
 
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=["", "SELINUX=disabled"]
         )
         assert output == expected
-        assert success
+        assert result.is_success()
 
     def test_apparmor_enabled(self, capsys):
         """Test AppArmor config set to enabled."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             read_effects=["nvidia_modprobe (enforce)", FileNotFoundError],
         )
@@ -1493,7 +1464,7 @@ class TestLSMs(_CheckTestBase):
                      However, some features might not work, such as ZTP.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_selinux_enabled(self, capsys):
         """Test SELinux config set to enabled."""
@@ -1505,21 +1476,21 @@ class TestLSMs(_CheckTestBase):
                      '--security-opt label=disable' or equivalent.
             """
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, "SELINUX=enforcing"]
         )
         assert output == expected
-        assert success
+        assert result.is_success()
 
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=["", "SELINUX=enforcing"]
         )
         assert output == expected
-        assert success
+        assert result.is_success()
 
     def test_both_enabled(self, capsys):
         """Test the case where both AppArmor and SELinux are enabled."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             read_effects=["nvidia_modprobe (enforce)", "SELINUX=enforcing"],
         )
@@ -1535,7 +1506,7 @@ class TestLSMs(_CheckTestBase):
                      '--security-opt label=disable' or equivalent.
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestRealtimeGroupSched(_CheckTestBase):
@@ -1550,37 +1521,31 @@ class TestRealtimeGroupSched(_CheckTestBase):
         with mock.patch(
             "host_check._get_cgroup_version", return_value=1
         ), mock.patch("os.path.exists", return_value=False):
-            success, error, output = self.perform_check(
-                capsys, read_effects=None
-            )
+            result, output = self.perform_check(capsys, read_effects=None)
         assert (
             output
             == " PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
         )
-        assert success
+        assert result.is_success()
 
     def test_v1_disabled_at_runtime(self, capsys):
         """Test the v1 case where disabled at runtime"""
         with mock.patch(
             "host_check._get_cgroup_version", return_value=1
         ), mock.patch("os.path.exists", return_value=True):
-            success, error, output = self.perform_check(
-                capsys, read_effects="-1"
-            )
+            result, output = self.perform_check(capsys, read_effects="-1")
         assert (
             output
             == " PASS -- Real-time Group Scheduling (disabled at runtime)\n"
         )
-        assert success
+        assert result.is_success()
 
     def test_v1_read_error(self, capsys):
         """Test the limit being too low."""
         with mock.patch(
             "host_check._get_cgroup_version", return_value=1
         ), mock.patch("os.path.exists", return_value=True):
-            success, error, output = self.perform_check(
-                capsys, read_effects=Exception
-            )
+            result, output = self.perform_check(capsys, read_effects=Exception)
         assert output == pretty_print(
             """\
             ERROR -- Real-time Group Scheduling
@@ -1595,16 +1560,14 @@ class TestRealtimeGroupSched(_CheckTestBase):
                        sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_v1_failure_enabled_at_runtime(self, capsys):
         """Test the check fails in the v1 case where enabled at runtime"""
         with mock.patch(
             "host_check._get_cgroup_version", return_value=1
         ), mock.patch("os.path.exists", return_value=True):
-            success, error, output = self.perform_check(
-                capsys, read_effects="950000"
-            )
+            result, output = self.perform_check(capsys, read_effects="950000")
         assert output == pretty_print(
             """\
              FAIL -- Real-time Group Scheduling
@@ -1619,44 +1582,38 @@ class TestRealtimeGroupSched(_CheckTestBase):
                        sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_v2_disabled_in_kernel_config(self, capsys):
         """Test the v2 case where disabled in kernel config"""
         with mock.patch(
             "host_check._get_cgroup_version", return_value=2
         ), mock.patch("os.path.exists", return_value=False):
-            success, error, output = self.perform_check(
-                capsys, read_effects=None
-            )
+            result, output = self.perform_check(capsys, read_effects=None)
         assert (
             output
             == " PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
         )
-        assert success
+        assert result.is_success()
 
     def test_v2_disabled_at_runtime(self, capsys):
         """Test the v2 case where disabled at runtime"""
         with mock.patch(
             "host_check._get_cgroup_version", return_value=2
         ), mock.patch("os.path.exists", return_value=True):
-            success, error, output = self.perform_check(
-                capsys, read_effects="-1"
-            )
+            result, output = self.perform_check(capsys, read_effects="-1")
         assert (
             output
             == " PASS -- Real-time Group Scheduling (disabled at runtime)\n"
         )
-        assert success
+        assert result.is_success()
 
     def test_v2_failure_enabled_at_runtime(self, capsys):
         """Test the check fails in the v2 case where enabled at runtime"""
         with mock.patch(
             "host_check._get_cgroup_version", return_value=2
         ), mock.patch("os.path.exists", return_value=True):
-            success, error, output = self.perform_check(
-                capsys, read_effects="950000"
-            )
+            result, output = self.perform_check(capsys, read_effects="950000")
         assert output == pretty_print(
             """\
              FAIL -- Real-time Group Scheduling
@@ -1671,7 +1628,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
                        sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestSocketParameters(_CheckTestBase):
@@ -1698,11 +1655,11 @@ class TestSocketParameters(_CheckTestBase):
             "67108864",
             "67108864",
         ]
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=minimum_values
         )
         assert output == " PASS -- Socket kernel parameters (valid settings)\n"
-        assert success
+        assert result.is_success()
 
     def test_higher_values(self, capsys):
         """Test when values are higher, the check passes."""
@@ -1714,11 +1671,9 @@ class TestSocketParameters(_CheckTestBase):
             "67109864",
             "67118864",
         ]
-        success, error, output = self.perform_check(
-            capsys, read_effects=higher_values
-        )
+        result, output = self.perform_check(capsys, read_effects=higher_values)
         assert output == " PASS -- Socket kernel parameters (valid settings)\n"
-        assert success
+        assert result.is_success()
 
     def test_lower_values(self, capsys):
         """Test when values are lower, the check warns."""
@@ -1730,9 +1685,7 @@ class TestSocketParameters(_CheckTestBase):
             "212992",
             "212992",
         ]
-        success, error, output = self.perform_check(
-            capsys, read_effects=lower_values
-        )
+        result, output = self.perform_check(capsys, read_effects=lower_values)
         assert output == pretty_print(
             f"""\
              WARN -- Socket kernel parameters
@@ -1765,7 +1718,7 @@ class TestSocketParameters(_CheckTestBase):
                        sysctl -w net.core.rmem_default=67108864
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_read_failure(self, capsys):
         """Test read failure on socket parameter"""
@@ -1775,16 +1728,14 @@ class TestSocketParameters(_CheckTestBase):
             "67108864",
             Exception,
         ]
-        success, error, output = self.perform_check(
-            capsys, read_effects=error_values
-        )
+        result, output = self.perform_check(capsys, read_effects=error_values)
         assert output == pretty_print(
             f"""\
             ERROR -- Socket kernel parameters
                      Failed to read socket kernel parameter /proc/sys/net/core/rmem_max.
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestUDPParameters(_CheckTestBase):
@@ -1796,24 +1747,24 @@ class TestUDPParameters(_CheckTestBase):
 
     def test_matching_values(self, capsys):
         """Test when all values precisely match, the check passes."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="1124736 10000000 67108864"
         )
         assert output == " PASS -- UDP kernel parameters (valid settings)\n"
-        assert success
+        assert result.is_success()
 
     def test_higher_values(self, capsys):
         """Test when values are higher, the check passes."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="1124737 20000000 67108868"
         )
         assert output == " PASS -- UDP kernel parameters (valid settings)\n"
-        assert success
+        assert result.is_success()
 
     def test_lower_values(self, capsys):
         """Test when values are lower, the check warns."""
 
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="767055 1022741 1534110"
         )
         assert output == pretty_print(
@@ -1836,9 +1787,9 @@ class TestUDPParameters(_CheckTestBase):
                        sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
-        assert not success
+        assert not result.is_success()
 
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="1124736 1022741 1534110"
         )
         assert output == pretty_print(
@@ -1861,9 +1812,9 @@ class TestUDPParameters(_CheckTestBase):
                        sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
-        assert not success
+        assert not result.is_success()
 
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="1124736 10000000 1534110"
         )
         assert output == pretty_print(
@@ -1886,20 +1837,18 @@ class TestUDPParameters(_CheckTestBase):
                        sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_read_failure(self, capsys):
         """Test read failure on socket parameter"""
-        success, error, output = self.perform_check(
-            capsys, read_effects=Exception
-        )
+        result, output = self.perform_check(capsys, read_effects=Exception)
         assert output == pretty_print(
             f"""\
             ERROR -- UDP kernel parameters
                      Failed to read UDP kernel parameter /proc/sys/net/ipv4/udp_mem.
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 # -------------------------------------
@@ -1921,9 +1870,7 @@ class TestRAM(_CheckTestBase):
 Mem:    17048223744 14166241280  2647126016    18145280   234856448  2745040896
 Swap:   31798079488  2008911872 29789167616
         """
-        success, error, output = self.perform_check(
-            capsys, cmd_effects=cmd_output
-        )
+        result, output = self.perform_check(capsys, cmd_effects=cmd_output)
         assert output == pretty_print(
             """\
              PASS -- RAM
@@ -1933,11 +1880,11 @@ Swap:   31798079488  2008911872 29789167616
                      Note that any swap that may be available is not included.
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -1948,11 +1895,11 @@ Swap:   31798079488  2008911872 29789167616
                      Each XRd instance is expected to require 2 GiB of RAM for normal use.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_match(self, capsys):
         """Test failure to parse free memory from the output."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
         assert output == pretty_print(
@@ -1963,7 +1910,7 @@ Swap:   31798079488  2008911872 29789167616
                      Each XRd instance is expected to require 2 GiB of RAM for normal use.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_too_low(self, capsys):
         """Test the available memory being too low."""
@@ -1972,9 +1919,7 @@ Swap:   31798079488  2008911872 29789167616
 Mem:    17048223744 14166241280  2647126016    18145280   234856448  1745040896
 Swap:   31798079488  2008911872 29789167616
         """
-        success, error, output = self.perform_check(
-            capsys, cmd_effects=cmd_output
-        )
+        result, output = self.perform_check(capsys, cmd_effects=cmd_output)
         assert output == pretty_print(
             """\
              WARN -- RAM
@@ -1983,11 +1928,11 @@ Swap:   31798079488  2008911872 29789167616
                      Note that this does not include any swap that may be available.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -1996,7 +1941,7 @@ Swap:   31798079488  2008911872 29789167616
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestCPUExtensions(_CheckTestBase):
@@ -2008,17 +1953,15 @@ class TestCPUExtensions(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="Flags: ssse3 sse4_1 sse4_2"
         )
         assert output == f" PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
-        assert success
+        assert result.is_success()
 
     def test_parse_error(self, capsys):
         """Test the case where the CPU extensions cannot be parsed."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="no match"
-        )
+        result, output = self.perform_check(capsys, cmd_effects="no match")
         assert output == pretty_print(
             f"""\
             ERROR -- CPU extensions
@@ -2027,13 +1970,11 @@ class TestCPUExtensions(_CheckTestBase):
                      All of these extensions must be installed.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_missing_extensions(self, capsys):
         """Test some extensions being missing."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects="Flags: ssse3"
-        )
+        result, output = self.perform_check(capsys, cmd_effects="Flags: ssse3")
         assert output == pretty_print(
             f"""\
              FAIL -- CPU extensions
@@ -2041,11 +1982,11 @@ class TestCPUExtensions(_CheckTestBase):
                      Please install the missing extension(s).
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -2056,11 +1997,11 @@ class TestCPUExtensions(_CheckTestBase):
                      All of these extensions must be installed.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -2069,7 +2010,7 @@ class TestCPUExtensions(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestHugepages(_CheckTestBase):
@@ -2088,7 +2029,7 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 3",
             ]
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
         assert output == pretty_print(
@@ -2096,7 +2037,7 @@ class TestHugepages(_CheckTestBase):
              PASS -- Hugepages (3 x 1GiB)
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_2_MB_supported(self, capsys):
         """Test the case where only 2 MiB hugepages are supported and in use."""
@@ -2107,7 +2048,7 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 2000",
             ]
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
         assert output == pretty_print(
@@ -2117,7 +2058,7 @@ class TestHugepages(_CheckTestBase):
                      supported for XRd deployment use cases.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unaccepted_size(self, capsys):
         """Test the case where the hugepages size is not accepted."""
@@ -2128,7 +2069,7 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 1500",
             ]
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
         assert output == pretty_print(
@@ -2137,7 +2078,7 @@ class TestHugepages(_CheckTestBase):
                      3MiB hugepages are available, but XRd requires 1GiB hugepages.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_insufficient_memory_1_GB(self, capsys):
         """
@@ -2151,7 +2092,7 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 2",
             ]
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
         assert output == pretty_print(
@@ -2161,7 +2102,7 @@ class TestHugepages(_CheckTestBase):
                      requires at least 3GiB.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_insufficient_memory_2_MB(self, capsys):
         """
@@ -2175,7 +2116,7 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 512",
             ]
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
         assert output == pretty_print(
@@ -2187,7 +2128,7 @@ class TestHugepages(_CheckTestBase):
                      requires at least 3GiB.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_hugepages_disabled(self, capsys):
         """Test the case where hugepages are not enabled."""
@@ -2198,7 +2139,7 @@ class TestHugepages(_CheckTestBase):
                 "HugePages_Free: 0",
             ]
         )
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
         assert output == pretty_print(
@@ -2209,13 +2150,11 @@ class TestHugepages(_CheckTestBase):
                      https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_mem_oserror(self, capsys):
         """Test an OS error being raised when trying to read from /proc/meminfo."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=OSError
-        )
+        result, output = self.perform_check(capsys, read_effects=OSError)
         assert output == pretty_print(
             """\
             ERROR -- Hugepages
@@ -2225,13 +2164,11 @@ class TestHugepages(_CheckTestBase):
                      hugepage memory.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_value_error(self, capsys):
         """Test a value error being raised."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=ValueError
-        )
+        result, output = self.perform_check(capsys, read_effects=ValueError)
         assert output == pretty_print(
             """\
             ERROR -- Hugepages
@@ -2241,11 +2178,11 @@ class TestHugepages(_CheckTestBase):
                      hugepage memory.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -2254,7 +2191,7 @@ class TestHugepages(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestGDPKernelDriver(_CheckTestBase):
@@ -2275,7 +2212,7 @@ class TestGDPKernelDriver(_CheckTestBase):
     def test_both_loaded(self, capsys):
         """Test the case where both PCI drivers are loaded."""
         # Command (grep -q) simply returns 0.
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=["", None, "", None, None, None]
         )
         assert output == pretty_print(
@@ -2284,12 +2221,12 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_both_builtin(self, capsys):
         """Test the case where both PCI drivers are builtin."""
         # Command (grep -q) simply returns 0.
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
@@ -2306,12 +2243,12 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Loaded PCI drivers: vfio-pci, igb_uio
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_both_installed(self, capsys):
         """Test the case where vfio-pci is installed but not loaded."""
         # Command (grep -q) simply returns 0.
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.CalledProcessError(1, ""),
@@ -2330,11 +2267,11 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Run 'modprobe <pci driver>' to load a driver.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_both_missing(self, capsys):
         """Test the case where vfio-pci is not loaded."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
@@ -2353,11 +2290,11 @@ class TestGDPKernelDriver(_CheckTestBase):
                      It may be possible to install using your distro's package manager.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_loaded_and_installed(self, capsys):
         """Test where vfio-pci is loaded and igb_uio is installed but not loaded."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 "",
@@ -2376,11 +2313,11 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Run 'modprobe <pci driver>' to load a driver.
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_installed_and_builtin(self, capsys):
         """Test where vfio-pci is installed but not loaded and igb_uio is builtin."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
@@ -2399,11 +2336,11 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Run 'modprobe <pci driver>' to load a driver.
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_missing_and_installed(self, capsys):
         """Test where vfio-pci is missing and igb_uio is installed."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError(1, ""),
@@ -2422,11 +2359,11 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Run 'modprobe <pci driver>' to load a driver.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -2435,7 +2372,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestIOMMU(_CheckTestBase):
@@ -2475,7 +2412,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2494,7 +2431,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                      device4 (0000:00:1f.2)
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_no_iommu_devices(self, capsys):
         """Test the case where no devices are found."""
@@ -2506,7 +2443,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         """
         iommu_devices = ["0000:00:00.0", "0000:00:01.0"]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2523,7 +2460,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                      IOMMU enabled for vfio-pci, but no network PCI devices found.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_lshw_error(self, capsys):
         """Test the case where an error is hit when searching for network devices."""
@@ -2536,7 +2473,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2554,7 +2491,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                      determine the network devices on the host. IOMMU is enabled.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_net_devices(self, capsys):
         """Test the case where no network devices are found."""
@@ -2571,7 +2508,7 @@ Bus info          Device      Class      Description
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2587,12 +2524,12 @@ Bus info          Device      Class      Description
              WARN -- IOMMU (no PCI network devices found)
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_iommu_directory_check_error(self, capsys):
         """Test the case where the IOMMU check throws an error."""
         with mock.patch("glob.glob", side_effect=Exception):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2609,12 +2546,12 @@ Bus info          Device      Class      Description
                      IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_iommu_not_enabled(self, capsys):
         """Test the case where IOMMU is not enabled."""
         with mock.patch("glob.glob", return_value=[]):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2631,11 +2568,11 @@ Bus info          Device      Class      Description
                      IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_iommu_mode(self, capsys):
         """Test the case where vfio-pci is set up in no-IOMMU mode."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 "",
@@ -2651,7 +2588,7 @@ Bus info          Device      Class      Description
                      vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_iommu_unconfigurable(self, capsys):
         """
@@ -2678,7 +2615,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             "0000:00:1f.3",
         ]
         with mock.patch("glob.glob", return_value=iommu_devices):
-            success, error, output = self.perform_check(
+            result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
                     "",
@@ -2697,11 +2634,11 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                      device4 (0000:00:1f.2)
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 "",
@@ -2717,24 +2654,22 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, error, output = self.perform_check(
-            capsys, failed_deps=self.deps
-        )
+        result, output = self.perform_check(capsys, failed_deps=self.deps)
         assert output == pretty_print(
             """\
              SKIP -- IOMMU
                      Skipped due to failed checks: Interface kernel driver
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_vfio_pci_not_enabled(self, capsys):
         """Test for when vfio-pci is not enabled."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys,
             cmd_effects=[
                 subprocess.SubprocessError,
@@ -2746,14 +2681,14 @@ pci@0000:00:01.0  device2     network    Ethernet interface
              INFO -- IOMMU (vfio-pci driver unavailable)
             """
         )
-        assert success
+        assert result.is_success()
 
     def test_warn_igb_uio_enabled(self, capsys):
         """
         Test a failure that would result in a WARN result, but with igb_uio
         enabled is just INFO.
         """
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=["", None, "", None], read_effects="Y"
         )
         assert output == pretty_print(
@@ -2762,7 +2697,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                      vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
             """
         )
-        assert success
+        assert result.is_success()
 
 
 class TestSharedMemPageMaxSize(_CheckTestBase):
@@ -2774,17 +2709,13 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="2147483648"
-        )
+        result, output = self.perform_check(capsys, read_effects="2147483648")
         assert output == " PASS -- Shared memory pages max size (2.0 GiB)\n"
-        assert success
+        assert result.is_success()
 
     def test_oserror(self, capsys):
         """Test the OS error case."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=OSError
-        )
+        result, output = self.perform_check(capsys, read_effects=OSError)
         assert output == pretty_print(
             """\
             ERROR -- Shared memory pages max size
@@ -2793,13 +2724,11 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      At least 2 GiB are required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_failure(self, capsys):
         """Test the OS error case."""
-        success, error, output = self.perform_check(
-            capsys, read_effects="1073741824"
-        )
+        result, output = self.perform_check(capsys, read_effects="1073741824")
         assert output == pretty_print(
             """\
              FAIL -- Shared memory pages max size
@@ -2807,11 +2736,11 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      but at least 2 GiB are required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_exception(self, capsys):
         """Test the Exception case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects="not an integer"
         )
         assert output == pretty_print(
@@ -2822,11 +2751,11 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      At least 2 GiB are required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, read_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -2835,7 +2764,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 # -------------------------------------
@@ -2852,15 +2781,15 @@ class TestDockerClient(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="Docker version 18.0.4"
         )
         assert output == " PASS -- Docker client (version 18.0.4)\n"
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -2872,11 +2801,11 @@ class TestDockerClient(_CheckTestBase):
                      At least version 18.0 is required for XRd.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
         assert output == pretty_print(
@@ -2886,11 +2815,11 @@ class TestDockerClient(_CheckTestBase):
                      At least version 18.0 is required for XRd.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="Docker version 17.11"
         )
         assert output == pretty_print(
@@ -2900,11 +2829,11 @@ class TestDockerClient(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -2913,7 +2842,7 @@ class TestDockerClient(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestDockerDaemon(_CheckTestBase):
@@ -2926,15 +2855,13 @@ class TestDockerDaemon(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects='"18.0.4"'
-        )
+        result, output = self.perform_check(capsys, cmd_effects='"18.0.4"')
         assert output == " PASS -- Docker daemon (running, version 18.0.4)\n"
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -2946,11 +2873,11 @@ class TestDockerDaemon(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
         assert output == pretty_print(
@@ -2961,13 +2888,11 @@ class TestDockerDaemon(_CheckTestBase):
                      At least version 18.0 is required for XRd.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, error, output = self.perform_check(
-            capsys, cmd_effects='"17.11"'
-        )
+        result, output = self.perform_check(capsys, cmd_effects='"17.11"')
         assert output == pretty_print(
             """\
              FAIL -- Docker daemon
@@ -2975,11 +2900,11 @@ class TestDockerDaemon(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -2988,20 +2913,18 @@ class TestDockerDaemon(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, error, output = self.perform_check(
-            capsys, failed_deps=self.deps
-        )
+        result, output = self.perform_check(capsys, failed_deps=self.deps)
         assert output == pretty_print(
             """\
              SKIP -- Docker daemon
                      Skipped due to failed checks: Docker client
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestDtypeSupport(_CheckTestBase):
@@ -3014,15 +2937,15 @@ class TestDtypeSupport(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="Supports d_type: true"
         )
         assert output == " PASS -- Docker supports d_type\n"
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -3033,11 +2956,11 @@ class TestDtypeSupport(_CheckTestBase):
                      This is required for XRd to avoid issues with creating and deleting files.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_dtype_match(self, capsys):
         """Test failure to match on d_type support in the output."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
         assert output == pretty_print(
@@ -3048,11 +2971,11 @@ class TestDtypeSupport(_CheckTestBase):
                      This is required for XRd to avoid issues with creating and deleting files.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -3061,20 +2984,18 @@ class TestDtypeSupport(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
-        success, error, output = self.perform_check(
-            capsys, failed_deps=self.deps
-        )
+        result, output = self.perform_check(capsys, failed_deps=self.deps)
         assert output == pretty_print(
             """\
              SKIP -- Docker supports d_type
                      Skipped due to failed checks: Docker daemon
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 # -------------------------------------
@@ -3091,15 +3012,15 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="docker-compose version 1.18.0"
         )
         assert output == " PASS -- docker-compose (version 1.18.0)\n"
-        assert success
+        assert result.is_success()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
         assert output == pretty_print(
@@ -3110,11 +3031,11 @@ class TestDockerCompose(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/compose/install/.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
         assert output == pretty_print(
@@ -3123,11 +3044,11 @@ class TestDockerCompose(_CheckTestBase):
                      Unable to parse Docker Compose version, at least version 1.18 is required.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects="docker-compose version 1.17.10"
         )
         assert output == pretty_print(
@@ -3137,11 +3058,11 @@ class TestDockerCompose(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/compose/install/.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        success, error, output = self.perform_check(
+        result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
         assert output == pretty_print(
@@ -3150,7 +3071,7 @@ class TestDockerCompose(_CheckTestBase):
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestPyYAML(_CheckTestBase):
@@ -3162,14 +3083,14 @@ class TestPyYAML(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         with mock.patch("builtins.__import__"):
-            success, error, output = self.perform_check(capsys)
+            result, output = self.perform_check(capsys)
         assert output == f" PASS -- PyYAML (installed)\n"
-        assert success
+        assert result.is_success()
 
     def test_unavailable(self, capsys):
         """Test yaml not being available."""
         with mock.patch("builtins.__import__", side_effect=ImportError):
-            success, error, output = self.perform_check(capsys)
+            result, output = self.perform_check(capsys)
         assert output == pretty_print(
             f"""\
              FAIL -- PyYAML
@@ -3177,21 +3098,21 @@ class TestPyYAML(_CheckTestBase):
                      Install with 'python3 -m pip install pyyaml'.
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
         with mock.patch(
             "builtins.__import__", side_effect=Exception("test exception")
         ):
-            success, error, output = self.perform_check(capsys)
+            result, output = self.perform_check(capsys)
         assert output == pretty_print(
             f"""\
              FAIL -- PyYAML
                      Unexpected error: test exception
             """
         )
-        assert not success
+        assert not result.is_success()
 
 
 class TestBridgeIptables(_CheckTestBase):
@@ -3206,17 +3127,13 @@ class TestBridgeIptables(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=["0", "0"]
-        )
+        result, output = self.perform_check(capsys, read_effects=["0", "0"])
         assert output == " PASS -- Bridge iptables (disabled)\n"
-        assert success
+        assert result.is_success()
 
     def test_not_disabled(self, capsys):
         """Test bridge iptables not being disabled."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=["0", "1"]
-        )
+        result, output = self.perform_check(capsys, read_effects=["0", "1"])
         assert output == pretty_print(
             f"""\
              FAIL -- Bridge iptables
@@ -3233,13 +3150,11 @@ class TestBridgeIptables(_CheckTestBase):
                        sysctl -w net.bridge.bridge-nf-call-ip6tables=0
             """
         )
-        assert not success
+        assert not result.is_success()
 
     def test_error(self, capsys):
         """Test error being raised."""
-        success, error, output = self.perform_check(
-            capsys, read_effects=Exception
-        )
+        result, output = self.perform_check(capsys, read_effects=Exception)
         assert output == pretty_print(
             f"""\
             ERROR -- Bridge iptables
@@ -3257,4 +3172,4 @@ class TestBridgeIptables(_CheckTestBase):
                        sysctl -w net.bridge.bridge-nf-call-ip6tables=0
             """
         )
-        assert not success
+        assert not result.is_success()
