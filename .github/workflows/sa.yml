@@ -10,9 +10,6 @@ on:
       - 'docs/**'
       - 'templates/**'
       - 'commit-check'
-  push:
-    branches:
-      - 'gh-actions*'
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -31,7 +28,7 @@ jobs:
             cmd: 'mypy'
     name: 'python-sa (${{ matrix.name }})'
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@main
         with:
           fetch-depth: 0
 
@@ -51,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     name: 'bash-sa (shellcheck)'
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@main
         with:
           fetch-depth: 0
 

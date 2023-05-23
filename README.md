@@ -1,3 +1,5 @@
+[![Check release](https://github.com/ios-xr/xrd-tools/actions/workflows/check-release.yml/badge.svg)](https://github.com/ios-xr/xrd-tools/actions/workflows/check-release.yml)
+
 # XRd Tools
 
 This repository contains tools for working with XRd containers.
