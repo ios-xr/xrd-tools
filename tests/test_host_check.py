@@ -2794,7 +2794,9 @@ class TestDockerDaemon(_CheckTestBase):
 
     def test_dirty_version(self, capsys):
         """Test success with a dirty version number."""
-        success, output = self.perform_check(capsys, cmd_effects='"20.1+azure"')
+        success, output = self.perform_check(
+            capsys, cmd_effects='"20.1+azure"'
+        )
         assert output == "PASS -- Docker daemon (running, version 20.1)\n"
         assert success
 
