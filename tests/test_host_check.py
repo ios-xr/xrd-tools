@@ -31,7 +31,7 @@ from .utils import REPO_ROOT_DIR
 
 HOST_CHECK_SCRIPT = REPO_ROOT_DIR / "scripts" / "host-check"
 host_check = utils.import_path(HOST_CHECK_SCRIPT)
-
+OverallCheckState = host_check.OverallCheckState
 
 # --------------------------------------------------------------------
 # Helpers
@@ -66,7 +66,7 @@ def perform_check(
     files: Optional[Union[Tuple[str, str], List[Tuple[str, str]]]] = None,
     deps: Optional[List[str]] = None,
     failed_deps: Optional[List[str]] = None,
-) -> Tuple[host_check.OverallCheckState, str]:
+) -> Tuple[bool, str]:
     """
     Perform a single host check and return whether it succeeded and the output.
 
@@ -89,7 +89,7 @@ def perform_check(
     :param failed_deps:
         Any dependencies to treat as failed.
     :return:
-        The overall result of the check, and the output from the check.
+        The result of the check and the output from the check.
     """
     check = [c for c in CHECKS_BY_GROUP[group] if c.name == name][0]
     checks = []
@@ -178,14 +178,7 @@ def perform_check(
         lines = lines[len(deps) :]
         output = "".join(lines)
 
-    return result, output
-
-
-def pretty_print(msg: str) -> str:
-    dedent_msg = textwrap.dedent(msg)
-    if dedent_msg.startswith("ERROR"):
-        return dedent_msg
-    return textwrap.indent(dedent_msg, " ")
+    return result is OverallCheckState.ALL_SUCCEEDED, output
 
 
 # --------------------------------------------------------------------
@@ -247,7 +240,7 @@ Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared m
 XR platforms supported: xrd-control-plane, xrd-vrouter
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_plat_xrd(self, capsys):
@@ -265,7 +258,7 @@ Checks: {CONTROL_PLANE_CHECKS_STR}
 Host environment set up correctly for xrd-control-plane
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_plat_xrd_vrouter(self, capsys):
@@ -281,7 +274,7 @@ Checks: {VROUTER_CHECKS_STR}
 Host environment set up correctly for xrd-vrouter
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_extra_check_docker_plat(self, capsys):
@@ -309,7 +302,7 @@ Host environment set up correctly for xrd-control-plane
 Extra checks passed: docker
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_extra_check_xr_compose_plat(self, capsys):
@@ -337,7 +330,7 @@ Host environment set up correctly for xrd-control-plane
 Extra checks passed: xr-compose
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_all_extra_checks_plat(self, capsys):
@@ -369,7 +362,7 @@ Host environment set up correctly for xrd-control-plane
 Extra checks passed: docker, xr-compose
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_extra_check_docker(self, capsys):
@@ -406,7 +399,7 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
 Extra checks passed: docker
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_extra_check_xr_compose(self, capsys):
@@ -443,7 +436,7 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
 Extra checks passed: xr-compose
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_all_extra_checks(self, capsys):
@@ -486,7 +479,7 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
 Extra checks passed: docker, xr-compose
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_plat_specified_check_failing(self, capsys):
@@ -506,7 +499,7 @@ Checks: {CONTROL_PLANE_CHECKS_STR}
 !! Host NOT set up correctly for xrd-control-plane !!
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
 
     def test_plat_specified_check_erroring(self, capsys):
@@ -527,7 +520,7 @@ Checks: {CONTROL_PLANE_CHECKS_STR}
 !! One or more checks could not be performed, see errors above !!
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
 
     def test_base_check_erroring(self, capsys):
@@ -559,7 +552,7 @@ Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared m
 !! One or more checks could not be performed, see errors above !!
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
 
     def test_no_plats_supported(self, capsys):
@@ -588,7 +581,7 @@ Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared m
 !! Host NOT set up correctly for any XR platforms !!
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
 
     def test_one_plat_supported(self, capsys):
@@ -618,7 +611,7 @@ XR platforms supported: xrd-control-plane
 XR platforms NOT supported: xrd-vrouter
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_extra_check_not_supported(self, capsys):
@@ -662,7 +655,7 @@ Extra checks passed: docker
 Extra checks failed: xr-compose
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
     def test_extra_check_failing(self, capsys):
@@ -697,13 +690,13 @@ Extra checks passed: docker
 Extra checks failed: xr-compose
 ==================================================================
 """
-        assert output == cli_output
+        assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
 
     def test_unrecognized_arg(self, capsys):
         """Test running host-check with an unrecognized argument."""
         exit_code, output = self.run_host_check(capsys, ["philanthropy"])
-        assert output == ""
+        assert textwrap.dedent(output) == ""
         assert exit_code == 2
 
 
@@ -784,13 +777,15 @@ class TestArch(_CheckTestBase):
     def test_success(self, capsys):
         """Test the architecture being correct."""
         result, output = self.perform_check(capsys, cmd_effects="x86_64")
-        assert output == " PASS -- CPU architecture (x86_64)\n"
+        assert (
+            textwrap.dedent(output) == " PASS -- CPU architecture (x86_64)\n"
+        )
         assert result.is_success()
 
     def test_incorrect_arch(self, capsys):
         """Test the incorrect architecture case."""
         result, output = self.perform_check(capsys, cmd_effects="arm64")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- CPU architecture
                      The CPU architecture is arm64, but XRd only supports: x86_64.
@@ -803,7 +798,7 @@ class TestArch(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU architecture
                      Unable to check the CPU architecture with 'uname -m'.
@@ -823,13 +818,13 @@ class TestCPUCores(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, cmd_effects="CPU(s): 16 ")
-        assert output == f" PASS -- CPU cores (16)\n"
+        assert textwrap.dedent(output) == f" PASS -- CPU cores (16)\n"
         assert result.is_success()
 
     def test_too_few_cpus(self, capsys):
         """Test there being too few available CPU cores."""
         result, output = self.perform_check(capsys, cmd_effects="CPU(s): 1 ")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- CPU cores
                      The number of available CPU cores is 1,
@@ -843,7 +838,7 @@ class TestCPUCores(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="bananas taste awesome"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU cores
                      Unable to parse the output from 'lscpu' -
@@ -858,7 +853,7 @@ class TestCPUCores(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU cores
                      Error running 'lscpu' to check the number of available CPU cores.
@@ -872,7 +867,7 @@ class TestCPUCores(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- CPU cores
                      Unexpected error: test exception
@@ -886,7 +881,7 @@ class TestCPUCores(_CheckTestBase):
             capsys,
             cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU cores
                      Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
@@ -905,7 +900,7 @@ class TestKernelVersion(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, cmd_effects="4.1")
-        assert output == " PASS -- Kernel version (4.1)\n"
+        assert textwrap.dedent(output) == " PASS -- Kernel version (4.1)\n"
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -913,7 +908,7 @@ class TestKernelVersion(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Kernel version
                      Unable to check the kernel version - must be at least version 4.0
@@ -926,7 +921,7 @@ class TestKernelVersion(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Kernel version
                      Unable to check the kernel version - must be at least version 4.0
@@ -937,7 +932,7 @@ class TestKernelVersion(_CheckTestBase):
     def test_old_version(self, capsys):
         """Test the version being too old."""
         result, output = self.perform_check(capsys, cmd_effects="3.9.8")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Kernel version
                      The kernel version is 3.9, but at least version 4.0 is required.
@@ -950,7 +945,7 @@ class TestKernelVersion(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.el8"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Kernel version
                      The operating system appears to be RHEL/CentOS 8.3 (kernel version 4.18.0-240),
@@ -965,7 +960,7 @@ class TestKernelVersion(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-193.el8"
         )
-        assert output == " PASS -- Kernel version (4.18)\n"
+        assert textwrap.dedent(output) == " PASS -- Kernel version (4.18)\n"
         assert result.is_success()
 
     def test_generic_os_with_rhel83_kernel_version(self, capsys):
@@ -973,7 +968,7 @@ class TestKernelVersion(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.generic"
         )
-        assert output == " PASS -- Kernel version (4.18)\n"
+        assert textwrap.dedent(output) == " PASS -- Kernel version (4.18)\n"
         assert result.is_success()
 
 
@@ -991,7 +986,7 @@ class TestBaseKernelModules(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, cmd_effects=["", ""])
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              PASS -- Base kernel modules
                      Installed module(s): dummy, nf_tables
@@ -1004,7 +999,7 @@ class TestBaseKernelModules(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=["", subprocess.SubprocessError(1, "")]
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Base kernel modules
                      Missing kernel module(s): nf_tables
@@ -1019,7 +1014,7 @@ class TestBaseKernelModules(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=[subprocess.SubprocessError(1, ""), ""]
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Base kernel modules
                      Missing kernel module(s): dummy
@@ -1034,7 +1029,7 @@ class TestBaseKernelModules(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=["", Exception("test exception")]
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Base kernel modules
                      Unexpected error: test exception
@@ -1048,7 +1043,7 @@ class TestBaseKernelModules(_CheckTestBase):
             capsys,
             cmd_effects=subprocess.TimeoutExpired(cmd=self.cmds, timeout=5),
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Base kernel modules
                      Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
@@ -1059,7 +1054,7 @@ class TestBaseKernelModules(_CheckTestBase):
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
         result, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              SKIP -- Base kernel modules
                      Skipped due to failed checks: Kernel version
@@ -1103,7 +1098,7 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              PASS -- Cgroups (v1)
             """
@@ -1116,7 +1111,7 @@ class TestCgroups(_CheckTestBase):
             capsys,
             cmd_effects=[mock.Mock(returncode=1), mock.Mock(returncode=1)],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Cgroups
                      Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
@@ -1131,7 +1126,7 @@ class TestCgroups(_CheckTestBase):
             result, output = self.perform_check(
                 capsys, cmd_effects=[mock.Mock(returncode=0), None]
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              INFO -- Cgroups
                      Cgroups v2 is in use - this is not supported for production environments.
@@ -1144,7 +1139,7 @@ class TestCgroups(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Cgroups
                      Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
@@ -1167,7 +1162,7 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Cgroups
                      These cgroup mounts do not exist on the host: systemd.
@@ -1193,7 +1188,7 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Cgroups
                      These cgroup mounts do not exist on the host: pids.
@@ -1216,7 +1211,7 @@ class TestCgroups(_CheckTestBase):
                 mock.Mock(returncode=0),
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Cgroups
                      These cgroup mounts do not exist on the host: systemd, cpu.
@@ -1238,7 +1233,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, read_effects="10000000")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              PASS -- {self.check_name}
                      10000000 - this is expected to be sufficient for 2500 XRd instance(s).
@@ -1249,7 +1244,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
     def test_too_low(self, capsys):
         """Test the limit being too low."""
         result, output = self.perform_check(capsys, read_effects="3000")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- {self.check_name}
                      The kernel parameter fs.inotify.{self.inotify_param} is set to 3000 but
@@ -1266,7 +1261,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
     def test_warning_level(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
         result, output = self.perform_check(capsys, read_effects="7000")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- {self.check_name}
                      The kernel parameter fs.inotify.{self.inotify_param} is set to 7000 -
@@ -1283,7 +1278,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
     def test_error(self, capsys):
         """Test error being raised."""
         result, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- {self.check_name}
                      Failed to check inotify resource limits by reading
@@ -1327,7 +1322,10 @@ class TestCorePattern(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="no leading pipe"
         )
-        assert output == " INFO -- Core pattern (core files managed by XR)\n"
+        assert (
+            textwrap.dedent(output)
+            == " INFO -- Core pattern (core files managed by XR)\n"
+        )
         assert result.is_success()
 
     def test_managed_by_host(self, capsys):
@@ -1342,7 +1340,7 @@ class TestCorePattern(_CheckTestBase):
     def test_error(self, capsys):
         """Test error being raised."""
         result, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              INFO -- Core pattern
                      Failed to read /proc/sys/kernel/core_pattern - unable to determine
@@ -1362,13 +1360,15 @@ class TestASLR(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, read_effects="2")
-        assert output == " PASS -- ASLR (full randomization)\n"
+        assert (
+            textwrap.dedent(output) == " PASS -- ASLR (full randomization)\n"
+        )
         assert result.is_success()
 
     def test_read_error(self, capsys):
         """Test the limit being too low."""
         result, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- ASLR
                      Failed to read /proc/sys/kernel/randomize_va_space, which controls ASLR
@@ -1386,7 +1386,7 @@ class TestASLR(_CheckTestBase):
     def test_unexpected_value(self, capsys):
         """Test the file containing an unexpected value."""
         result, output = self.perform_check(capsys, read_effects="unexpected")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- ASLR
                      Failed to read /proc/sys/kernel/randomize_va_space, which controls ASLR
@@ -1404,7 +1404,7 @@ class TestASLR(_CheckTestBase):
     def test_not_enabled(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
         result, output = self.perform_check(capsys, read_effects="1")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- ASLR
                      The kernel paramater kernel.randomize_va_space, which controls ASLR
@@ -1432,7 +1432,7 @@ class TestLSMs(_CheckTestBase):
         Test when config files read, they indicate LSMs are disabled or not
         installed.
         """
-        expected = pretty_print(
+        expected = textwrap.dedent(
             f"""\
              INFO -- Linux Security Modules (No LSMs are enabled)
             """
@@ -1440,13 +1440,13 @@ class TestLSMs(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, FileNotFoundError]
         )
-        assert output == expected
+        assert textwrap.dedent(output) == expected
         assert result.is_success()
 
         result, output = self.perform_check(
             capsys, read_effects=["", "SELINUX=disabled"]
         )
-        assert output == expected
+        assert textwrap.dedent(output) == expected
         assert result.is_success()
 
     def test_apparmor_enabled(self, capsys):
@@ -1455,7 +1455,7 @@ class TestLSMs(_CheckTestBase):
             capsys,
             read_effects=["nvidia_modprobe (enforce)", FileNotFoundError],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- Linux Security Modules
                      AppArmor is enabled. XRd is currently unable to run with the
@@ -1468,7 +1468,7 @@ class TestLSMs(_CheckTestBase):
 
     def test_selinux_enabled(self, capsys):
         """Test SELinux config set to enabled."""
-        expected = pretty_print(
+        expected = textwrap.dedent(
             f"""\
              INFO -- Linux Security Modules
                      SELinux is enabled. XRd is currently unable to run with the
@@ -1479,13 +1479,13 @@ class TestLSMs(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, "SELINUX=enforcing"]
         )
-        assert output == expected
+        assert textwrap.dedent(output) == expected
         assert result.is_success()
 
         result, output = self.perform_check(
             capsys, read_effects=["", "SELINUX=enforcing"]
         )
-        assert output == expected
+        assert textwrap.dedent(output) == expected
         assert result.is_success()
 
     def test_both_enabled(self, capsys):
@@ -1494,7 +1494,7 @@ class TestLSMs(_CheckTestBase):
             capsys,
             read_effects=["nvidia_modprobe (enforce)", "SELINUX=enforcing"],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- Linux Security Modules
                      AppArmor is enabled. XRd is currently unable to run with the
@@ -1546,7 +1546,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
             "host_check._get_cgroup_version", return_value=1
         ), mock.patch("os.path.exists", return_value=True):
             result, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Real-time Group Scheduling
                      Failed to read /proc/sys/kernel/sched_rt_runtime_us, unable to check if
@@ -1568,7 +1568,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
             "host_check._get_cgroup_version", return_value=1
         ), mock.patch("os.path.exists", return_value=True):
             result, output = self.perform_check(capsys, read_effects="950000")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Real-time Group Scheduling
                      The kernel parameter kernel.sched_rt_runtime_us is set to 950000
@@ -1614,7 +1614,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
             "host_check._get_cgroup_version", return_value=2
         ), mock.patch("os.path.exists", return_value=True):
             result, output = self.perform_check(capsys, read_effects="950000")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Real-time Group Scheduling
                      The kernel parameter kernel.sched_rt_runtime_us is set to 950000
@@ -1658,7 +1658,10 @@ class TestSocketParameters(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=minimum_values
         )
-        assert output == " PASS -- Socket kernel parameters (valid settings)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- Socket kernel parameters (valid settings)\n"
+        )
         assert result.is_success()
 
     def test_higher_values(self, capsys):
@@ -1672,7 +1675,10 @@ class TestSocketParameters(_CheckTestBase):
             "67118864",
         ]
         result, output = self.perform_check(capsys, read_effects=higher_values)
-        assert output == " PASS -- Socket kernel parameters (valid settings)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- Socket kernel parameters (valid settings)\n"
+        )
         assert result.is_success()
 
     def test_lower_values(self, capsys):
@@ -1686,7 +1692,7 @@ class TestSocketParameters(_CheckTestBase):
             "212992",
         ]
         result, output = self.perform_check(capsys, read_effects=lower_values)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- Socket kernel parameters
                      The kernel socket parameters are insufficient for running XRd in a
@@ -1729,7 +1735,7 @@ class TestSocketParameters(_CheckTestBase):
             Exception,
         ]
         result, output = self.perform_check(capsys, read_effects=error_values)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Socket kernel parameters
                      Failed to read socket kernel parameter /proc/sys/net/core/rmem_max.
@@ -1750,7 +1756,10 @@ class TestUDPParameters(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="1124736 10000000 67108864"
         )
-        assert output == " PASS -- UDP kernel parameters (valid settings)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- UDP kernel parameters (valid settings)\n"
+        )
         assert result.is_success()
 
     def test_higher_values(self, capsys):
@@ -1758,7 +1767,10 @@ class TestUDPParameters(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="1124737 20000000 67108868"
         )
-        assert output == " PASS -- UDP kernel parameters (valid settings)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- UDP kernel parameters (valid settings)\n"
+        )
         assert result.is_success()
 
     def test_lower_values(self, capsys):
@@ -1767,7 +1779,7 @@ class TestUDPParameters(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="767055 1022741 1534110"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- UDP kernel parameters
                      The kernel UDP parameters are insufficient for running XRd in a
@@ -1792,7 +1804,7 @@ class TestUDPParameters(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="1124736 1022741 1534110"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- UDP kernel parameters
                      The kernel UDP parameters are insufficient for running XRd in a
@@ -1817,7 +1829,7 @@ class TestUDPParameters(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="1124736 10000000 1534110"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- UDP kernel parameters
                      The kernel UDP parameters are insufficient for running XRd in a
@@ -1842,7 +1854,7 @@ class TestUDPParameters(_CheckTestBase):
     def test_read_failure(self, capsys):
         """Test read failure on socket parameter"""
         result, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- UDP kernel parameters
                      Failed to read UDP kernel parameter /proc/sys/net/ipv4/udp_mem.
@@ -1871,7 +1883,7 @@ Mem:    17048223744 14166241280  2647126016    18145280   234856448  2745040896
 Swap:   31798079488  2008911872 29789167616
         """
         result, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              PASS -- RAM
                      Available RAM is 2.6 GiB.
@@ -1887,7 +1899,7 @@ Swap:   31798079488  2008911872 29789167616
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- RAM
                      The command 'free -b' failed - unable to determine the available RAM on
@@ -1902,7 +1914,7 @@ Swap:   31798079488  2008911872 29789167616
         result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- RAM
                      Failed to parse the output from 'free -b' - unable to determine the
@@ -1920,7 +1932,7 @@ Mem:    17048223744 14166241280  2647126016    18145280   234856448  1745040896
 Swap:   31798079488  2008911872 29789167616
         """
         result, output = self.perform_check(capsys, cmd_effects=cmd_output)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              WARN -- RAM
                      The available RAM on the host (1.6 GiB) may be insufficient to run XRd.
@@ -1935,7 +1947,7 @@ Swap:   31798079488  2008911872 29789167616
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- RAM
                      Unexpected error: test exception
@@ -1956,13 +1968,16 @@ class TestCPUExtensions(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="Flags: ssse3 sse4_1 sse4_2"
         )
-        assert output == f" PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
+        assert (
+            textwrap.dedent(output)
+            == f" PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
+        )
         assert result.is_success()
 
     def test_parse_error(self, capsys):
         """Test the case where the CPU extensions cannot be parsed."""
         result, output = self.perform_check(capsys, cmd_effects="no match")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU extensions
                      Unable to parse the output from 'lscpu' - unable to check
@@ -1975,7 +1990,7 @@ class TestCPUExtensions(_CheckTestBase):
     def test_missing_extensions(self, capsys):
         """Test some extensions being missing."""
         result, output = self.perform_check(capsys, cmd_effects="Flags: ssse3")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- CPU extensions
                      Missing CPU extension(s): sse4_1, sse4_2
@@ -1989,7 +2004,7 @@ class TestCPUExtensions(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU extensions
                      Unable to parse the output from 'lscpu' - unable to check
@@ -2004,7 +2019,7 @@ class TestCPUExtensions(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- CPU extensions
                      Unexpected error: test exception
@@ -2032,7 +2047,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              PASS -- Hugepages (3 x 1GiB)
             """
@@ -2051,7 +2066,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              WARN -- Hugepages
                      2MiB hugepages are available, but only 1GiB hugepages are
@@ -2072,7 +2087,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Hugepages
                      3MiB hugepages are available, but XRd requires 1GiB hugepages.
@@ -2095,7 +2110,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Hugepages
                      Only 2.0GiB of hugepage memory available, but XRd
@@ -2119,7 +2134,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Hugepages
                      2MiB hugepages are available, but only 1GiB hugepages are
@@ -2142,7 +2157,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=hugepages_data
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Hugepages
                      Hugepages are not enabled. These are required for XRd to function correctly.
@@ -2155,7 +2170,7 @@ class TestHugepages(_CheckTestBase):
     def test_mem_oserror(self, capsys):
         """Test an OS error being raised when trying to read from /proc/meminfo."""
         result, output = self.perform_check(capsys, read_effects=OSError)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Hugepages
                      Unable to parse the contents of /proc/meminfo - unable to check
@@ -2169,7 +2184,7 @@ class TestHugepages(_CheckTestBase):
     def test_value_error(self, capsys):
         """Test a value error being raised."""
         result, output = self.perform_check(capsys, read_effects=ValueError)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Hugepages
                      Unable to parse the contents of /proc/meminfo - unable to check
@@ -2185,7 +2200,7 @@ class TestHugepages(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Hugepages
                      Unexpected error: test exception
@@ -2215,7 +2230,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=["", None, "", None, None, None]
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              PASS -- Interface kernel driver
                      Loaded PCI drivers: vfio-pci, igb_uio
@@ -2237,7 +2252,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                 None,
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              PASS -- Interface kernel driver
                      Loaded PCI drivers: vfio-pci, igb_uio
@@ -2259,7 +2274,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                 "",
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Interface kernel driver
                      None of the expected PCI drivers are loaded.
@@ -2282,7 +2297,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                 subprocess.SubprocessError,
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Interface kernel driver
                      No PCI drivers are loaded or installed.
@@ -2305,7 +2320,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                 "",
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              INFO -- Interface kernel driver
                      The following PCI drivers are installed but not loaded: igb_uio.
@@ -2328,7 +2343,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                 None,
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              INFO -- Interface kernel driver
                      The following PCI drivers are installed but not loaded: vfio-pci.
@@ -2351,7 +2366,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                 "",
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Interface kernel driver
                      None of the expected PCI drivers are loaded.
@@ -2366,7 +2381,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Interface kernel driver
                      Unexpected error: test exception
@@ -2423,7 +2438,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                 ],
                 read_effects="N",
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              PASS -- IOMMU
                      IOMMU enabled for vfio-pci with the following PCI device(s):
@@ -2454,7 +2469,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                 ],
                 read_effects="N",
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- IOMMU
                      IOMMU enabled for vfio-pci, but no network PCI devices found.
@@ -2484,7 +2499,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                 ],
                 read_effects="N",
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- IOMMU
                      The cmd 'lshw -businfo -c network' failed - unable to
@@ -2519,7 +2534,7 @@ Bus info          Device      Class      Description
                 ],
                 read_effects="N",
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- IOMMU (no PCI network devices found)
             """
@@ -2539,7 +2554,7 @@ Bus info          Device      Class      Description
                 ],
                 read_effects="N",
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- IOMMU
                      Unable to check if IOMMU is enabled by listing /sys/class/iommu/*/devices/*.
@@ -2561,7 +2576,7 @@ Bus info          Device      Class      Description
                 ],
                 read_effects="N",
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- IOMMU
                      The kernel module vfio-pci cannot be used, as IOMMU is not enabled.
@@ -2582,7 +2597,7 @@ Bus info          Device      Class      Description
             ],
             read_effects="Y",
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              WARN -- IOMMU
                      vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
@@ -2626,7 +2641,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                 ],
                 read_effects=OSError,
             )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              PASS -- IOMMU
                      IOMMU enabled for vfio-pci with the following PCI device(s):
@@ -2648,7 +2663,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             ],
             read_effects=Exception("test exception"),
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- IOMMU
                      Unexpected error: test exception
@@ -2659,7 +2674,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
         result, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              SKIP -- IOMMU
                      Skipped due to failed checks: Interface kernel driver
@@ -2676,7 +2691,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                 subprocess.SubprocessError,
             ],
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              INFO -- IOMMU (vfio-pci driver unavailable)
             """
@@ -2691,7 +2706,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         result, output = self.perform_check(
             capsys, cmd_effects=["", None, "", None], read_effects="Y"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              INFO -- IOMMU
                      vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
@@ -2710,13 +2725,16 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, read_effects="2147483648")
-        assert output == " PASS -- Shared memory pages max size (2.0 GiB)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- Shared memory pages max size (2.0 GiB)\n"
+        )
         assert result.is_success()
 
     def test_oserror(self, capsys):
         """Test the OS error case."""
         result, output = self.perform_check(capsys, read_effects=OSError)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Shared memory pages max size
                      Unable to read the contents of /proc/sys/kernel/shmmax - unable to
@@ -2729,7 +2747,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
     def test_failure(self, capsys):
         """Test the OS error case."""
         result, output = self.perform_check(capsys, read_effects="1073741824")
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Shared memory pages max size
                      The maximum size of shared memory pages is 1.0 GiB,
@@ -2743,7 +2761,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects="not an integer"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Shared memory pages max size
                      Unable to parse the contents of /proc/sys/kernel/shmmax - unable to
@@ -2758,7 +2776,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
         result, output = self.perform_check(
             capsys, read_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Shared memory pages max size
                      Unexpected error: test exception
@@ -2784,7 +2802,10 @@ class TestDockerClient(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="Docker version 18.0.4"
         )
-        assert output == " PASS -- Docker client (version 18.0.4)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- Docker client (version 18.0.4)\n"
+        )
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -2792,7 +2813,7 @@ class TestDockerClient(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker client
                      Docker client not correctly installed on the host (checked with
@@ -2808,7 +2829,7 @@ class TestDockerClient(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Docker client
                      Unable to parse Docker client version from 'docker --version'.
@@ -2822,7 +2843,7 @@ class TestDockerClient(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="Docker version 17.11"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker client
                      Docker version must be at least 18.0, current client version is 17.11.
@@ -2836,7 +2857,7 @@ class TestDockerClient(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker client
                      Unexpected error: test exception
@@ -2856,7 +2877,10 @@ class TestDockerDaemon(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, cmd_effects='"18.0.4"')
-        assert output == " PASS -- Docker daemon (running, version 18.0.4)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- Docker daemon (running, version 18.0.4)\n"
+        )
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -2864,7 +2888,7 @@ class TestDockerDaemon(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker daemon
                      Unable to connect to the Docker daemon (checked with
@@ -2880,7 +2904,7 @@ class TestDockerDaemon(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Docker daemon
                      Unable to parse Docker server version from
@@ -2893,7 +2917,7 @@ class TestDockerDaemon(_CheckTestBase):
     def test_old_version(self, capsys):
         """Test the version being too old."""
         result, output = self.perform_check(capsys, cmd_effects='"17.11"')
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker daemon
                      Docker version must be at least 18.0, current server version is 17.11.
@@ -2907,7 +2931,7 @@ class TestDockerDaemon(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker daemon
                      Unexpected error: test exception
@@ -2918,7 +2942,7 @@ class TestDockerDaemon(_CheckTestBase):
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
         result, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              SKIP -- Docker daemon
                      Skipped due to failed checks: Docker client
@@ -2940,7 +2964,7 @@ class TestDtypeSupport(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="Supports d_type: true"
         )
-        assert output == " PASS -- Docker supports d_type\n"
+        assert textwrap.dedent(output) == " PASS -- Docker supports d_type\n"
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -2948,7 +2972,7 @@ class TestDtypeSupport(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker supports d_type
                      'docker info' command failed.
@@ -2963,7 +2987,7 @@ class TestDtypeSupport(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker supports d_type
                      Docker is using a backing filesystem that does not support d_type
@@ -2978,7 +3002,7 @@ class TestDtypeSupport(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- Docker supports d_type
                      Unexpected error: test exception
@@ -2989,7 +3013,7 @@ class TestDtypeSupport(_CheckTestBase):
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
         result, output = self.perform_check(capsys, failed_deps=self.deps)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              SKIP -- Docker supports d_type
                      Skipped due to failed checks: Docker daemon
@@ -3015,7 +3039,10 @@ class TestDockerCompose(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="docker-compose version 1.18.0"
         )
-        assert output == " PASS -- docker-compose (version 1.18.0)\n"
+        assert (
+            textwrap.dedent(output)
+            == " PASS -- docker-compose (version 1.18.0)\n"
+        )
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -3023,7 +3050,7 @@ class TestDockerCompose(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=subprocess.SubprocessError
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- docker-compose
                      Docker Compose not found (checked with 'docker-compose --version').
@@ -3038,7 +3065,7 @@ class TestDockerCompose(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="unexpected output"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- docker-compose
                      Unable to parse Docker Compose version, at least version 1.18 is required.
@@ -3051,7 +3078,7 @@ class TestDockerCompose(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="docker-compose version 1.17.10"
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- docker-compose
                      Docker Compose version must be at least 1.18, current version is 1.17.10.
@@ -3065,7 +3092,7 @@ class TestDockerCompose(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects=Exception("test exception")
         )
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             """\
              FAIL -- docker-compose
                      Unexpected error: test exception
@@ -3084,14 +3111,14 @@ class TestPyYAML(_CheckTestBase):
         """Test the success case."""
         with mock.patch("builtins.__import__"):
             result, output = self.perform_check(capsys)
-        assert output == f" PASS -- PyYAML (installed)\n"
+        assert textwrap.dedent(output) == f" PASS -- PyYAML (installed)\n"
         assert result.is_success()
 
     def test_unavailable(self, capsys):
         """Test yaml not being available."""
         with mock.patch("builtins.__import__", side_effect=ImportError):
             result, output = self.perform_check(capsys)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- PyYAML
                      PyYAML Python package not installed - required for running xr-compose.
@@ -3106,7 +3133,7 @@ class TestPyYAML(_CheckTestBase):
             "builtins.__import__", side_effect=Exception("test exception")
         ):
             result, output = self.perform_check(capsys)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- PyYAML
                      Unexpected error: test exception
@@ -3128,13 +3155,15 @@ class TestBridgeIptables(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, read_effects=["0", "0"])
-        assert output == " PASS -- Bridge iptables (disabled)\n"
+        assert (
+            textwrap.dedent(output) == " PASS -- Bridge iptables (disabled)\n"
+        )
         assert result.is_success()
 
     def test_not_disabled(self, capsys):
         """Test bridge iptables not being disabled."""
         result, output = self.perform_check(capsys, read_effects=["0", "1"])
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
              FAIL -- Bridge iptables
                      For xr-compose to be able to use Docker bridges, bridge IP tables must
@@ -3155,7 +3184,7 @@ class TestBridgeIptables(_CheckTestBase):
     def test_error(self, capsys):
         """Test error being raised."""
         result, output = self.perform_check(capsys, read_effects=Exception)
-        assert output == pretty_print(
+        assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Bridge iptables
                      Failed to read iptables settings under /proc/sys/net/bridge/.

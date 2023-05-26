@@ -341,9 +341,6 @@ class OverallCheckState(enum.Enum):
     FAILURES = "failures"
     ERRORS = "errors"
 
-    def is_success(self) -> bool:
-        return self is OverallCheckState.ALL_SUCCEEDED
-
 
 def overall_check_state(results: Dict[str, CheckState]) -> OverallCheckState:
     """
@@ -358,10 +355,10 @@ def overall_check_state(results: Dict[str, CheckState]) -> OverallCheckState:
     errored_checks = any(c is CheckState.ERROR for c in results.values())
     if success:
         return OverallCheckState.ALL_SUCCEEDED
-    if errored_checks:
-        return OverallCheckState.ERRORS
-    else:
+    elif not success and not errored_checks:
         return OverallCheckState.FAILURES
+    else:
+        return OverallCheckState.ERRORS
 
 
 CheckFuncReturn = Optional[Tuple[CheckState, str]]
@@ -429,15 +426,16 @@ def check_cpu_cores() -> CheckFuncReturn:
 
 def check_kernel_version() -> CheckFuncReturn:
     """Check kernel version is recent enough."""
+    cmd = "uname -r"
     try:
-        output, _ = run_cmd(["uname", "-r"])
+        output, _ = run_cmd(shlex.split(cmd))
         version = ".".join(output.strip().split(".")[:2])
         version_tuple = tuple(int(x) for x in version.split("."))
 
     except Exception:
         return (
             CheckState.ERROR,
-            "Unable to check the kernel version - must be at least version 4.0",
+            f"Unable to check the kernel version with command {cmd!r} - must be at least version 4.0",
         )
 
     if version_tuple < (4, 0):
@@ -489,7 +487,7 @@ def check_cgroups() -> CheckFuncReturn:
         version = _get_cgroup_version()
     except Exception:
         return (
-            CheckState.FAILED,
+            CheckState.ERROR,
             "Error trying to determine the cgroups version - /sys/fs/cgroup is expected to\n"
             "contain cgroup v1 mounts.",
         )
@@ -1286,7 +1284,7 @@ def check_supports_d_type() -> CheckFuncReturn:
         output = run_cmd(shlex.split(cmd))[0]
     except subprocess.SubprocessError:
         return (
-            CheckState.FAILED,
+            CheckState.ERROR,
             f"{cmd!r} command failed.\n"
             f"Unable to check filesystem support for d_type (directory entry type).\n"
             f"This is required for XRd to avoid issues with creating and deleting files.",
@@ -1564,12 +1562,9 @@ def perform_checks(checks: List[Check]) -> OverallCheckState:
                 else:
                     status = CheckState.SUCCESS
                     msg = None
-            except CmdTimeoutError as e:
+            except (CmdTimeoutError, Exception) as e:
                 status = CheckState.ERROR
-                msg = f"Unexpected error: {e}"
-            except Exception as e:
-                status = CheckState.FAILED
-                msg = f"Unexpected error: {e}"
+                msg = f"Command timed out: {e}"
         else:
             status = CheckState.SKIPPED
             msg = "Skipped due to failed checks: {}".format(", ".join(deps))
@@ -1600,7 +1595,7 @@ def run_extra_checks(extra_checks: List[str]) -> Tuple[Set[str], Set[str]]:
     for extra_check in sorted(extra_checks):
         print_subheading(f"{extra_check} checks")
         result = perform_checks(EXTRA_CHECKS_MAP[extra_check])
-        if result.is_success():
+        if result is OverallCheckState.ALL_SUCCEEDED:
             extras_supported.add(extra_check)
         else:
             extras_not_supported.add(extra_check)
@@ -1659,7 +1654,9 @@ def run_checks_specific_platform(
         print_extra_checks_summary(extras_supported, extras_not_supported)
     print(f"\n{DOUBLE_DASHED_LINE}")
 
-    return result.is_success() and not extras_not_supported
+    return (
+        result is OverallCheckState.ALL_SUCCEEDED and not extras_not_supported
+    )
 
 
 def run_checks_all_platforms(extra_checks: List[str]) -> bool:
@@ -1685,7 +1682,10 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
         if OverallCheckState.ERRORS in [base_result, plat_result]:
             platforms_with_errored_checks.add(platform)
 
-        if base_result.is_success() and plat_result.is_success():
+        if (
+            base_result is OverallCheckState.ALL_SUCCEEDED
+            and plat_result is OverallCheckState.ALL_SUCCEEDED
+        ):
             platforms_supported.add(platform)
         else:
             platforms_not_supported.add(platform)
