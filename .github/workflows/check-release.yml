@@ -1,0 +1,24 @@
+name: check-release
+on:
+  schedule:
+    - cron: "0 8 * * *"
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+
+      - name: Check latest version in CHANGELOG.md has a corresponding release
+        run: |
+          changelog_version=$(grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | head -n1)
+          echo "Top version found in CHANGELOG.md: $changelog_version"
+          release_version=$(curl https://api.github.com/repos/ios-xr/xrd-tools/releases/latest -s | jq .tag_name | tr -d '"')
+          echo "Latest release version from 'https://api.github.com/repos/ios-xr/xrd-tools/releases/latest': $release_version"
+          if [[ $release_version != $changelog_version ]]; then
+              echo "No release for $changelog_version (found in CHANGELOG.md), latest is $release_version" >&2
+              exit 1
+          else
+              echo "Versions match"
+          fi

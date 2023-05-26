@@ -1257,7 +1257,7 @@ def check_docker_daemon() -> CheckFuncReturn:
             f"See installation instructions at https://docs.docker.com/engine/install/.",
         )
 
-    version_match = re.match(r'"(\d+\.\d+(?:\.\d+)?)"', version_str)
+    version_match = re.match(r'"(\d+\.\d+(?:\.\d+)?)(?:\+.*)?"', version_str)
     if not version_match:
         return (
             CheckState.ERROR,
