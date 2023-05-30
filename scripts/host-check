@@ -334,33 +334,6 @@ class CheckState(enum.Enum):
         return self in [CheckState.SUCCESS, CheckState.NEUTRAL]
 
 
-class OverallCheckState(enum.Enum):
-    """The overall result state of multiple checks."""
-
-    ALL_SUCCEEDED = "all succeeded"
-    FAILURES = "failures"
-    ERRORS = "errors"
-
-
-def overall_check_state(results: Dict[str, CheckState]) -> OverallCheckState:
-    """
-    Determine the overall check state for the given results.
-
-    :param results:
-        Dictionary of results.
-    :return:
-        The overall check state.
-    """
-    success = not any(c.is_failure() for c in results.values())
-    errored_checks = any(c is CheckState.ERROR for c in results.values())
-    if success:
-        return OverallCheckState.ALL_SUCCEEDED
-    elif not success and not errored_checks:
-        return OverallCheckState.FAILURES
-    else:
-        return OverallCheckState.ERRORS
-
-
 CheckFuncReturn = Optional[Tuple[CheckState, str]]
 
 

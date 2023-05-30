@@ -485,6 +485,45 @@ Extra checks passed: docker, xr-compose
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
 
+    def test_extra_check_erroring(self, capsys):
+        """Test running host-check with the docker extra check erroring."""
+        exit_code, output = self.run_host_check(
+            capsys, ["-e", "docker"], erroring_checks=["Docker daemon"]
+        )
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: RAM
+
+xrd-vrouter checks
+-----------------------
+Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
+
+==============================
+Extra checks
+==============================
+
+docker checks
+-----------------------
+Checks: Docker client, Docker daemon, Docker supports d_type
+
+============================================================================
+XR platforms supported: xrd-control-plane, xrd-vrouter
+----------------------------------------------------------------------------
+Extra checks errored: docker
+============================================================================
+"""
+        assert textwrap.dedent(output) == cli_output
+        assert exit_code == 0
+
     def test_plat_specified_check_failing(self, capsys):
         """Test a platform check failing when host-check is run with arguments."""
         exit_code, output = self.run_host_check(
@@ -689,6 +728,41 @@ Host environment set up correctly for xrd-control-plane
 ----------------------------------------------------------------------------
 Extra checks passed: docker
 Extra checks failed: xr-compose
+============================================================================
+"""
+        assert textwrap.dedent(output) == cli_output
+        assert exit_code == 1
+
+    def test_extra_check_erroring_plat(self, capsys):
+        """Test a specified extra check erroring."""
+        exit_code, output = self.run_host_check(
+            capsys,
+            ["-p", "xrd-control-plane", "-e", "docker", "xr-compose"],
+            erroring_checks=["PyYAML"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks - xrd-control-plane
+==============================
+Checks: {CONTROL_PLANE_CHECKS_STR}
+
+==============================
+Extra checks
+==============================
+
+docker checks
+-----------------------
+Checks: Docker client, Docker daemon, Docker supports d_type
+
+xr-compose checks
+-----------------------
+Checks: docker-compose, PyYAML, Bridge iptables
+
+============================================================================
+Host environment set up correctly for xrd-control-plane
+----------------------------------------------------------------------------
+Extra checks passed: docker
+Extra checks errored: xr-compose
 ============================================================================
 """
         assert textwrap.dedent(output) == cli_output
