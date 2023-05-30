@@ -20,7 +20,7 @@ import contextlib
 import shlex
 import subprocess
 import textwrap
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from unittest import mock
 
 import pytest
@@ -31,11 +31,12 @@ from .utils import REPO_ROOT_DIR
 
 HOST_CHECK_SCRIPT = REPO_ROOT_DIR / "scripts" / "host-check"
 host_check = utils.import_path(HOST_CHECK_SCRIPT)
-OverallCheckState = host_check.OverallCheckState
+CheckState = host_check.CheckState
+Check = host_check.Check
 
-# --------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Helpers
-# --------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 CHECKS_BY_GROUP = {
     "base": host_check.BASE_CHECKS,
@@ -44,7 +45,7 @@ CHECKS_BY_GROUP = {
 }
 
 
-def _checks_to_str(checks) -> str:
+def _checks_to_str(checks: List[host_check.Check]) -> str:  # ignore
     return ", ".join(check.name for check in checks)
 
 
@@ -66,7 +67,7 @@ def perform_check(
     files: Optional[Union[Tuple[str, str], List[Tuple[str, str]]]] = None,
     deps: Optional[List[str]] = None,
     failed_deps: Optional[List[str]] = None,
-) -> Tuple[bool, str]:
+) -> Tuple[CheckState, str]:
     """
     Perform a single host check and return whether it succeeded and the output.
 
@@ -152,7 +153,7 @@ def perform_check(
             )
 
         # Run the host check.
-        result = host_check.perform_checks(checks)
+        result = host_check.perform_checks(checks)[name]
 
     # Check the expected commands were run.
     if cmds:
@@ -178,12 +179,12 @@ def perform_check(
         lines = lines[len(deps) :]
         output = "".join(lines)
 
-    return result is OverallCheckState.ALL_SUCCEEDED, output
+    return result, output
 
 
-# --------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Tests
-# --------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 
 class TestFlow:
@@ -196,18 +197,20 @@ class TestFlow:
         failing_checks: List[str] = [],
         erroring_checks: List[str] = [],
     ) -> Tuple[int, str]:
-        def perform_checks_mock(checks) -> host_check.OverallCheckState:
+        def perform_checks_mock(
+            checks: List[Check],
+        ) -> Mapping[str, CheckState]:
+            results: Dict[str, CheckState] = {}
             checks_list = [c.name for c in checks]
             print("Checks:", ", ".join(checks_list))
-            failures = bool(set(checks_list) & set(failing_checks))
-            errors = bool(set(checks_list) & set(erroring_checks))
-            if errors:
-                result = host_check.OverallCheckState.ERRORS
-            elif failures:
-                result = host_check.OverallCheckState.FAILURES
-            else:
-                result = host_check.OverallCheckState.ALL_SUCCEEDED
-            return result
+            for check in checks_list:
+                if check in failing_checks:
+                    results[check] = CheckState.FAILED
+                elif check in erroring_checks:
+                    results[check] = CheckState.ERROR
+                else:
+                    results[check] = CheckState.SUCCESS
+            return results
 
         with pytest.raises(SystemExit) as exc_info:
             with mock.patch.object(
@@ -236,9 +239,9 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
-==================================================================
+============================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -254,9 +257,9 @@ Platform checks - xrd-control-plane
 ==============================
 Checks: {CONTROL_PLANE_CHECKS_STR}
 
-==================================================================
+============================================================================
 Host environment set up correctly for xrd-control-plane
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -270,9 +273,9 @@ Platform checks - xrd-vrouter
 ==============================
 Checks: {VROUTER_CHECKS_STR}
 
-==================================================================
+============================================================================
 Host environment set up correctly for xrd-vrouter
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -296,11 +299,11 @@ docker checks
 -----------------------
 Checks: Docker client, Docker daemon, Docker supports d_type
 
-==================================================================
+============================================================================
 Host environment set up correctly for xrd-control-plane
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: docker
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -324,11 +327,11 @@ xr-compose checks
 -----------------------
 Checks: docker-compose, PyYAML, Bridge iptables
 
-==================================================================
+============================================================================
 Host environment set up correctly for xrd-control-plane
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: xr-compose
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -356,11 +359,11 @@ xr-compose checks
 -----------------------
 Checks: docker-compose, PyYAML, Bridge iptables
 
-==================================================================
+============================================================================
 Host environment set up correctly for xrd-control-plane
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: docker, xr-compose
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -393,11 +396,11 @@ docker checks
 -----------------------
 Checks: Docker client, Docker daemon, Docker supports d_type
 
-==================================================================
+============================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: docker
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -430,11 +433,11 @@ xr-compose checks
 -----------------------
 Checks: docker-compose, PyYAML, Bridge iptables
 
-==================================================================
+============================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: xr-compose
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -473,11 +476,11 @@ xr-compose checks
 -----------------------
 Checks: docker-compose, PyYAML, Bridge iptables
 
-==================================================================
+============================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: docker, xr-compose
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -495,9 +498,9 @@ Platform checks - xrd-control-plane
 ==============================
 Checks: {CONTROL_PLANE_CHECKS_STR}
 
-==================================================================
+============================================================================
 !! Host NOT set up correctly for xrd-control-plane !!
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
@@ -508,7 +511,6 @@ Checks: {CONTROL_PLANE_CHECKS_STR}
             capsys,
             ["-p", "xrd-control-plane"],
             erroring_checks=["Kernel version"],
-            failing_checks=["Kernel version"],
         )
         cli_output = f"""\
 ==============================
@@ -516,9 +518,9 @@ Platform checks - xrd-control-plane
 ==============================
 Checks: {CONTROL_PLANE_CHECKS_STR}
 
-==================================================================
-!! One or more checks could not be performed, see errors above !!
-==================================================================
+============================================================================
+!! One or more platform checks could not be performed, see errors above !!
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
@@ -529,7 +531,6 @@ Checks: {CONTROL_PLANE_CHECKS_STR}
             capsys,
             [],
             erroring_checks=["Kernel version"],
-            failing_checks=["Kernel version"],
         )
         cli_output = f"""\
 ==============================
@@ -548,9 +549,9 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
-==================================================================
-!! One or more checks could not be performed, see errors above !!
-==================================================================
+============================================================================
+!! One or more platform checks could not be performed, see errors above !!
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
@@ -577,9 +578,9 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
-==================================================================
-!! Host NOT set up correctly for any XR platforms !!
-==================================================================
+============================================================================
+XR platforms NOT supported: xrd-control-plane, xrd-vrouter
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
@@ -606,10 +607,10 @@ xrd-vrouter checks
 -----------------------
 Checks: CPU extensions, RAM, Hugepages, Interface kernel driver, IOMMU, Shared memory pages max size, Real-time Group Scheduling
 
-==================================================================
+============================================================================
 XR platforms supported: xrd-control-plane
 XR platforms NOT supported: xrd-vrouter
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -648,12 +649,12 @@ xr-compose checks
 -----------------------
 Checks: docker-compose, PyYAML, Bridge iptables
 
-==================================================================
+============================================================================
 XR platforms supported: xrd-control-plane, xrd-vrouter
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: docker
 Extra checks failed: xr-compose
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 0
@@ -683,12 +684,12 @@ xr-compose checks
 -----------------------
 Checks: docker-compose, PyYAML, Bridge iptables
 
-==================================================================
+============================================================================
 Host environment set up correctly for xrd-control-plane
-------------------------------------------------------------------
+----------------------------------------------------------------------------
 Extra checks passed: docker
 Extra checks failed: xr-compose
-==================================================================
+============================================================================
 """
         assert textwrap.dedent(output) == cli_output
         assert exit_code == 1
@@ -717,7 +718,7 @@ class _CheckTestBase:
         cmd_effects=None,
         read_effects=None,
         failed_deps=None,
-    ) -> Tuple[host_check.OverallCheckState, str]:
+    ) -> Tuple[CheckState, str]:
         """
         Perform the class's check with the given effects for each subproc cmd.
 
@@ -777,9 +778,7 @@ class TestArch(_CheckTestBase):
     def test_success(self, capsys):
         """Test the architecture being correct."""
         result, output = self.perform_check(capsys, cmd_effects="x86_64")
-        assert (
-            textwrap.dedent(output) == " PASS -- CPU architecture (x86_64)\n"
-        )
+        assert textwrap.dedent(output) == "PASS -- CPU architecture (x86_64)\n"
         assert result.is_success()
 
     def test_incorrect_arch(self, capsys):
@@ -791,7 +790,7 @@ class TestArch(_CheckTestBase):
                      The CPU architecture is arm64, but XRd only supports: x86_64.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
@@ -805,7 +804,7 @@ class TestArch(_CheckTestBase):
                      XRd supports the following architectures: x86_64.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestCPUCores(_CheckTestBase):
@@ -818,7 +817,7 @@ class TestCPUCores(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, cmd_effects="CPU(s): 16 ")
-        assert textwrap.dedent(output) == f" PASS -- CPU cores (16)\n"
+        assert textwrap.dedent(output) == f"PASS -- CPU cores (16)\n"
         assert result.is_success()
 
     def test_too_few_cpus(self, capsys):
@@ -831,7 +830,7 @@ class TestCPUCores(_CheckTestBase):
                      but at least 2 CPU cores are required.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_parse_error(self, capsys):
         """Test error when parsing output from 'lscpu'."""
@@ -846,7 +845,7 @@ class TestCPUCores(_CheckTestBase):
                      At least 2 CPU cores are required.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_subproc_error(self, capsys):
         """Test subprocess error being raised."""
@@ -860,7 +859,7 @@ class TestCPUCores(_CheckTestBase):
                      At least 2 CPU cores are required.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -869,11 +868,11 @@ class TestCPUCores(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-             FAIL -- CPU cores
-                     Unexpected error: test exception
+            ERROR -- CPU cores
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_timeout_error(self, capsys):
         """Test timeout error being raised."""
@@ -884,10 +883,10 @@ class TestCPUCores(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU cores
-                     Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
+                     Command timed out: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestKernelVersion(_CheckTestBase):
@@ -900,7 +899,7 @@ class TestKernelVersion(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, cmd_effects="4.1")
-        assert textwrap.dedent(output) == " PASS -- Kernel version (4.1)\n"
+        assert textwrap.dedent(output) == "PASS -- Kernel version (4.1)\n"
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -911,10 +910,10 @@ class TestKernelVersion(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Kernel version
-                     Unable to check the kernel version - must be at least version 4.0
+                     Unable to check the kernel version with command 'uname -r' - must be at least version 4.0
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
@@ -924,10 +923,10 @@ class TestKernelVersion(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Kernel version
-                     Unable to check the kernel version - must be at least version 4.0
+                     Unable to check the kernel version with command 'uname -r' - must be at least version 4.0
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
@@ -938,7 +937,7 @@ class TestKernelVersion(_CheckTestBase):
                      The kernel version is 3.9, but at least version 4.0 is required.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_rhel83_version(self, capsys):
         """Test the version being 4.18.0-240 on RHEL/CentOS 8.3."""
@@ -953,14 +952,14 @@ class TestKernelVersion(_CheckTestBase):
                      Please upgrade/downgrade to a RHEL/CentOS version higher or lower than 8.3
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_rhel82_version(self, capsys):
         """Test the version being 4.18.0-193 on RHEL/CentOS 8.2."""
         result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-193.el8"
         )
-        assert textwrap.dedent(output) == " PASS -- Kernel version (4.18)\n"
+        assert textwrap.dedent(output) == "PASS -- Kernel version (4.18)\n"
         assert result.is_success()
 
     def test_generic_os_with_rhel83_kernel_version(self, capsys):
@@ -968,7 +967,7 @@ class TestKernelVersion(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="4.18.0-240.generic"
         )
-        assert textwrap.dedent(output) == " PASS -- Kernel version (4.18)\n"
+        assert textwrap.dedent(output) == "PASS -- Kernel version (4.18)\n"
         assert result.is_success()
 
 
@@ -1007,7 +1006,7 @@ class TestBaseKernelModules(_CheckTestBase):
                      It may be possible to install using your distro's package manager.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_missing_dummy(self, capsys):
         """Test missing the dummy kernel module."""
@@ -1022,7 +1021,7 @@ class TestBaseKernelModules(_CheckTestBase):
                      It may be possible to install using your distro's package manager.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -1031,11 +1030,11 @@ class TestBaseKernelModules(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-             FAIL -- Base kernel modules
-                     Unexpected error: test exception
+            ERROR -- Base kernel modules
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_timeout_error(self, capsys):
         """Test timeout error being raised."""
@@ -1046,10 +1045,10 @@ class TestBaseKernelModules(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Base kernel modules
-                     Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
+                     Command timed out: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
@@ -1060,7 +1059,7 @@ class TestBaseKernelModules(_CheckTestBase):
                      Skipped due to failed checks: Kernel version
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 class TestCgroups(_CheckTestBase):
@@ -1100,7 +1099,7 @@ class TestCgroups(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             PASS -- Cgroups (v1)
+            PASS -- Cgroups (v1)
             """
         )
         assert result.is_success()
@@ -1113,12 +1112,12 @@ class TestCgroups(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Cgroups
+            ERROR -- Cgroups
                      Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
                      contain cgroup v1 mounts.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_v2_info(self, capsys):
         """Test the case where v2 cgroups are in use."""
@@ -1141,12 +1140,12 @@ class TestCgroups(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Cgroups
+            ERROR -- Cgroups
                      Error trying to determine the cgroups version - /sys/fs/cgroup is expected to
                      contain cgroup v1 mounts.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_systemd_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
@@ -1172,7 +1171,7 @@ class TestCgroups(_CheckTestBase):
                          sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_pids_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
@@ -1195,7 +1194,7 @@ class TestCgroups(_CheckTestBase):
                      These mounts are required to run XRd.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_systemd_cpu_mount_error(self, capsys):
         """Test case where systemd mount isn't present."""
@@ -1221,7 +1220,7 @@ class TestCgroups(_CheckTestBase):
                          sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 class _TestInotifyLimitsBase(_CheckTestBase):
@@ -1256,7 +1255,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                        sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_warning_level(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
@@ -1273,7 +1272,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                        sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_error(self, capsys):
         """Test error being raised."""
@@ -1291,7 +1290,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                        sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestInotifyInstances(_TestInotifyLimitsBase):
@@ -1324,7 +1323,7 @@ class TestCorePattern(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == " INFO -- Core pattern (core files managed by XR)\n"
+            == "INFO -- Core pattern (core files managed by XR)\n"
         )
         assert result.is_success()
 
@@ -1332,8 +1331,8 @@ class TestCorePattern(_CheckTestBase):
         """Test the managed by host case."""
         result, output = self.perform_check(capsys, read_effects="| piped")
         assert (
-            output
-            == " INFO -- Core pattern (core files managed by the host)\n"
+            textwrap.dedent(output)
+            == "INFO -- Core pattern (core files managed by the host)\n"
         )
         assert result.is_success()
 
@@ -1360,9 +1359,7 @@ class TestASLR(_CheckTestBase):
     def test_success(self, capsys):
         """Test the success case."""
         result, output = self.perform_check(capsys, read_effects="2")
-        assert (
-            textwrap.dedent(output) == " PASS -- ASLR (full randomization)\n"
-        )
+        assert textwrap.dedent(output) == "PASS -- ASLR (full randomization)\n"
         assert result.is_success()
 
     def test_read_error(self, capsys):
@@ -1381,7 +1378,7 @@ class TestASLR(_CheckTestBase):
                        sysctl -w kernel.randomize_va_space=2
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_unexpected_value(self, capsys):
         """Test the file containing an unexpected value."""
@@ -1399,7 +1396,7 @@ class TestASLR(_CheckTestBase):
                        sysctl -w kernel.randomize_va_space=2
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_not_enabled(self, capsys):
         """Test the limit being not too low but recommended to be higher."""
@@ -1417,7 +1414,7 @@ class TestASLR(_CheckTestBase):
                        sysctl -w kernel.randomize_va_space=2
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 class TestLSMs(_CheckTestBase):
@@ -1464,7 +1461,7 @@ class TestLSMs(_CheckTestBase):
                      However, some features might not work, such as ZTP.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_selinux_enabled(self, capsys):
         """Test SELinux config set to enabled."""
@@ -1506,7 +1503,7 @@ class TestLSMs(_CheckTestBase):
                      '--security-opt label=disable' or equivalent.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 class TestRealtimeGroupSched(_CheckTestBase):
@@ -1523,8 +1520,8 @@ class TestRealtimeGroupSched(_CheckTestBase):
         ), mock.patch("os.path.exists", return_value=False):
             result, output = self.perform_check(capsys, read_effects=None)
         assert (
-            output
-            == " PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
+            textwrap.dedent(output)
+            == "PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
         )
         assert result.is_success()
 
@@ -1535,8 +1532,8 @@ class TestRealtimeGroupSched(_CheckTestBase):
         ), mock.patch("os.path.exists", return_value=True):
             result, output = self.perform_check(capsys, read_effects="-1")
         assert (
-            output
-            == " PASS -- Real-time Group Scheduling (disabled at runtime)\n"
+            textwrap.dedent(output)
+            == "PASS -- Real-time Group Scheduling (disabled at runtime)\n"
         )
         assert result.is_success()
 
@@ -1560,7 +1557,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
                        sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_v1_failure_enabled_at_runtime(self, capsys):
         """Test the check fails in the v1 case where enabled at runtime"""
@@ -1582,7 +1579,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
                        sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_v2_disabled_in_kernel_config(self, capsys):
         """Test the v2 case where disabled in kernel config"""
@@ -1591,8 +1588,8 @@ class TestRealtimeGroupSched(_CheckTestBase):
         ), mock.patch("os.path.exists", return_value=False):
             result, output = self.perform_check(capsys, read_effects=None)
         assert (
-            output
-            == " PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
+            textwrap.dedent(output)
+            == "PASS -- Real-time Group Scheduling (disabled in kernel config)\n"
         )
         assert result.is_success()
 
@@ -1603,8 +1600,8 @@ class TestRealtimeGroupSched(_CheckTestBase):
         ), mock.patch("os.path.exists", return_value=True):
             result, output = self.perform_check(capsys, read_effects="-1")
         assert (
-            output
-            == " PASS -- Real-time Group Scheduling (disabled at runtime)\n"
+            textwrap.dedent(output)
+            == "PASS -- Real-time Group Scheduling (disabled at runtime)\n"
         )
         assert result.is_success()
 
@@ -1628,7 +1625,7 @@ class TestRealtimeGroupSched(_CheckTestBase):
                        sysctl -w kernel.sched_rt_runtime_us=-1
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 class TestSocketParameters(_CheckTestBase):
@@ -1660,7 +1657,7 @@ class TestSocketParameters(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == " PASS -- Socket kernel parameters (valid settings)\n"
+            == "PASS -- Socket kernel parameters (valid settings)\n"
         )
         assert result.is_success()
 
@@ -1677,7 +1674,7 @@ class TestSocketParameters(_CheckTestBase):
         result, output = self.perform_check(capsys, read_effects=higher_values)
         assert (
             textwrap.dedent(output)
-            == " PASS -- Socket kernel parameters (valid settings)\n"
+            == "PASS -- Socket kernel parameters (valid settings)\n"
         )
         assert result.is_success()
 
@@ -1724,7 +1721,7 @@ class TestSocketParameters(_CheckTestBase):
                        sysctl -w net.core.rmem_default=67108864
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_read_failure(self, capsys):
         """Test read failure on socket parameter"""
@@ -1741,7 +1738,7 @@ class TestSocketParameters(_CheckTestBase):
                      Failed to read socket kernel parameter /proc/sys/net/core/rmem_max.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestUDPParameters(_CheckTestBase):
@@ -1758,7 +1755,7 @@ class TestUDPParameters(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == " PASS -- UDP kernel parameters (valid settings)\n"
+            == "PASS -- UDP kernel parameters (valid settings)\n"
         )
         assert result.is_success()
 
@@ -1769,7 +1766,7 @@ class TestUDPParameters(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == " PASS -- UDP kernel parameters (valid settings)\n"
+            == "PASS -- UDP kernel parameters (valid settings)\n"
         )
         assert result.is_success()
 
@@ -1799,7 +1796,7 @@ class TestUDPParameters(_CheckTestBase):
                        sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
         result, output = self.perform_check(
             capsys, read_effects="1124736 1022741 1534110"
@@ -1824,7 +1821,7 @@ class TestUDPParameters(_CheckTestBase):
                        sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
         result, output = self.perform_check(
             capsys, read_effects="1124736 10000000 1534110"
@@ -1849,7 +1846,7 @@ class TestUDPParameters(_CheckTestBase):
                        sysctl -w net.ipv4.udp_mem='1124736 10000000 67108864'
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_read_failure(self, capsys):
         """Test read failure on socket parameter"""
@@ -1860,7 +1857,7 @@ class TestUDPParameters(_CheckTestBase):
                      Failed to read UDP kernel parameter /proc/sys/net/ipv4/udp_mem.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 # -------------------------------------
@@ -1907,7 +1904,7 @@ Swap:   31798079488  2008911872 29789167616
                      Each XRd instance is expected to require 2 GiB of RAM for normal use.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_no_match(self, capsys):
         """Test failure to parse free memory from the output."""
@@ -1922,7 +1919,7 @@ Swap:   31798079488  2008911872 29789167616
                      Each XRd instance is expected to require 2 GiB of RAM for normal use.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_too_low(self, capsys):
         """Test the available memory being too low."""
@@ -1940,7 +1937,7 @@ Swap:   31798079488  2008911872 29789167616
                      Note that this does not include any swap that may be available.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -1949,11 +1946,11 @@ Swap:   31798079488  2008911872 29789167616
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- RAM
-                     Unexpected error: test exception
+            ERROR -- RAM
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestCPUExtensions(_CheckTestBase):
@@ -1970,7 +1967,7 @@ class TestCPUExtensions(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == f" PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
+            == f"PASS -- CPU extensions (sse4_1, sse4_2, ssse3)\n"
         )
         assert result.is_success()
 
@@ -1985,7 +1982,7 @@ class TestCPUExtensions(_CheckTestBase):
                      All of these extensions must be installed.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_missing_extensions(self, capsys):
         """Test some extensions being missing."""
@@ -1997,7 +1994,7 @@ class TestCPUExtensions(_CheckTestBase):
                      Please install the missing extension(s).
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
@@ -2012,7 +2009,7 @@ class TestCPUExtensions(_CheckTestBase):
                      All of these extensions must be installed.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -2021,11 +2018,11 @@ class TestCPUExtensions(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-             FAIL -- CPU extensions
-                     Unexpected error: test exception
+            ERROR -- CPU extensions
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestHugepages(_CheckTestBase):
@@ -2073,7 +2070,7 @@ class TestHugepages(_CheckTestBase):
                      supported for XRd deployment use cases.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unaccepted_size(self, capsys):
         """Test the case where the hugepages size is not accepted."""
@@ -2093,7 +2090,7 @@ class TestHugepages(_CheckTestBase):
                      3MiB hugepages are available, but XRd requires 1GiB hugepages.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_insufficient_memory_1_GB(self, capsys):
         """
@@ -2117,7 +2114,7 @@ class TestHugepages(_CheckTestBase):
                      requires at least 3GiB.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_insufficient_memory_2_MB(self, capsys):
         """
@@ -2143,7 +2140,7 @@ class TestHugepages(_CheckTestBase):
                      requires at least 3GiB.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_hugepages_disabled(self, capsys):
         """Test the case where hugepages are not enabled."""
@@ -2165,7 +2162,7 @@ class TestHugepages(_CheckTestBase):
                      https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_mem_oserror(self, capsys):
         """Test an OS error being raised when trying to read from /proc/meminfo."""
@@ -2179,7 +2176,7 @@ class TestHugepages(_CheckTestBase):
                      hugepage memory.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_value_error(self, capsys):
         """Test a value error being raised."""
@@ -2193,7 +2190,7 @@ class TestHugepages(_CheckTestBase):
                      hugepage memory.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -2202,11 +2199,11 @@ class TestHugepages(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Hugepages
-                     Unexpected error: test exception
+            ERROR -- Hugepages
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestGDPKernelDriver(_CheckTestBase):
@@ -2282,7 +2279,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Run 'modprobe <pci driver>' to load a driver.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_both_missing(self, capsys):
         """Test the case where vfio-pci is not loaded."""
@@ -2305,7 +2302,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                      It may be possible to install using your distro's package manager.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_loaded_and_installed(self, capsys):
         """Test where vfio-pci is loaded and igb_uio is installed but not loaded."""
@@ -2374,7 +2371,7 @@ class TestGDPKernelDriver(_CheckTestBase):
                      Run 'modprobe <pci driver>' to load a driver.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -2383,11 +2380,11 @@ class TestGDPKernelDriver(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-             FAIL -- Interface kernel driver
-                     Unexpected error: test exception
+            ERROR -- Interface kernel driver
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestIOMMU(_CheckTestBase):
@@ -2475,7 +2472,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                      IOMMU enabled for vfio-pci, but no network PCI devices found.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_lshw_error(self, capsys):
         """Test the case where an error is hit when searching for network devices."""
@@ -2506,7 +2503,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
                      determine the network devices on the host. IOMMU is enabled.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_no_net_devices(self, capsys):
         """Test the case where no network devices are found."""
@@ -2539,7 +2536,7 @@ Bus info          Device      Class      Description
              WARN -- IOMMU (no PCI network devices found)
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_iommu_directory_check_error(self, capsys):
         """Test the case where the IOMMU check throws an error."""
@@ -2561,7 +2558,7 @@ Bus info          Device      Class      Description
                      IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_iommu_not_enabled(self, capsys):
         """Test the case where IOMMU is not enabled."""
@@ -2583,7 +2580,7 @@ Bus info          Device      Class      Description
                      IOMMU is recommended for security when using the vfio-pci kernel driver.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_no_iommu_mode(self, capsys):
         """Test the case where vfio-pci is set up in no-IOMMU mode."""
@@ -2603,7 +2600,7 @@ Bus info          Device      Class      Description
                      vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_no_iommu_unconfigurable(self, capsys):
         """
@@ -2665,11 +2662,11 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-             FAIL -- IOMMU
-                     Unexpected error: test exception
+            ERROR -- IOMMU
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
@@ -2680,7 +2677,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
                      Skipped due to failed checks: Interface kernel driver
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_vfio_pci_not_enabled(self, capsys):
         """Test for when vfio-pci is not enabled."""
@@ -2727,7 +2724,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
         result, output = self.perform_check(capsys, read_effects="2147483648")
         assert (
             textwrap.dedent(output)
-            == " PASS -- Shared memory pages max size (2.0 GiB)\n"
+            == "PASS -- Shared memory pages max size (2.0 GiB)\n"
         )
         assert result.is_success()
 
@@ -2742,7 +2739,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      At least 2 GiB are required.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_failure(self, capsys):
         """Test the OS error case."""
@@ -2754,7 +2751,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      but at least 2 GiB are required.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_exception(self, capsys):
         """Test the Exception case."""
@@ -2769,7 +2766,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
                      At least 2 GiB are required.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -2778,11 +2775,11 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Shared memory pages max size
-                     Unexpected error: test exception
+            ERROR -- Shared memory pages max size
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 # -------------------------------------
@@ -2804,7 +2801,7 @@ class TestDockerClient(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == " PASS -- Docker client (version 18.0.4)\n"
+            == "PASS -- Docker client (version 18.0.4)\n"
         )
         assert result.is_success()
 
@@ -2822,7 +2819,7 @@ class TestDockerClient(_CheckTestBase):
                      At least version 18.0 is required for XRd.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
@@ -2836,7 +2833,7 @@ class TestDockerClient(_CheckTestBase):
                      At least version 18.0 is required for XRd.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
@@ -2850,7 +2847,7 @@ class TestDockerClient(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -2859,11 +2856,11 @@ class TestDockerClient(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Docker client
-                     Unexpected error: test exception
+            ERROR -- Docker client
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestDockerDaemon(_CheckTestBase):
@@ -2879,17 +2876,9 @@ class TestDockerDaemon(_CheckTestBase):
         result, output = self.perform_check(capsys, cmd_effects='"18.0.4"')
         assert (
             textwrap.dedent(output)
-            == " PASS -- Docker daemon (running, version 18.0.4)\n"
+            == "PASS -- Docker daemon (running, version 18.0.4)\n"
         )
         assert result.is_success()
-
-    def test_dirty_version(self, capsys):
-        """Test success with a dirty version number."""
-        success, output = self.perform_check(
-            capsys, cmd_effects='"20.1+azure"'
-        )
-        assert output == "PASS -- Docker daemon (running, version 20.1)\n"
-        assert success
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
@@ -2905,7 +2894,7 @@ class TestDockerDaemon(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
@@ -2920,7 +2909,7 @@ class TestDockerDaemon(_CheckTestBase):
                      At least version 18.0 is required for XRd.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
@@ -2932,7 +2921,7 @@ class TestDockerDaemon(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/engine/install/.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -2941,11 +2930,11 @@ class TestDockerDaemon(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Docker daemon
-                     Unexpected error: test exception
+            ERROR -- Docker daemon
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
@@ -2956,7 +2945,7 @@ class TestDockerDaemon(_CheckTestBase):
                      Skipped due to failed checks: Docker client
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 class TestDtypeSupport(_CheckTestBase):
@@ -2972,7 +2961,7 @@ class TestDtypeSupport(_CheckTestBase):
         result, output = self.perform_check(
             capsys, cmd_effects="Supports d_type: true"
         )
-        assert textwrap.dedent(output) == " PASS -- Docker supports d_type\n"
+        assert textwrap.dedent(output) == "PASS -- Docker supports d_type\n"
         assert result.is_success()
 
     def test_subproc_error(self, capsys):
@@ -2982,13 +2971,13 @@ class TestDtypeSupport(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Docker supports d_type
+            ERROR -- Docker supports d_type
                      'docker info' command failed.
                      Unable to check filesystem support for d_type (directory entry type).
                      This is required for XRd to avoid issues with creating and deleting files.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_no_dtype_match(self, capsys):
         """Test failure to match on d_type support in the output."""
@@ -3003,7 +2992,7 @@ class TestDtypeSupport(_CheckTestBase):
                      This is required for XRd to avoid issues with creating and deleting files.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -3012,11 +3001,11 @@ class TestDtypeSupport(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- Docker supports d_type
-                     Unexpected error: test exception
+            ERROR -- Docker supports d_type
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_failed_dependency(self, capsys):
         """Test a dependency failure."""
@@ -3027,7 +3016,7 @@ class TestDtypeSupport(_CheckTestBase):
                      Skipped due to failed checks: Docker daemon
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
 
 # -------------------------------------
@@ -3049,7 +3038,7 @@ class TestDockerCompose(_CheckTestBase):
         )
         assert (
             textwrap.dedent(output)
-            == " PASS -- docker-compose (version 1.18.0)\n"
+            == "PASS -- docker-compose (version 1.18.0)\n"
         )
         assert result.is_success()
 
@@ -3066,7 +3055,7 @@ class TestDockerCompose(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/compose/install/.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
@@ -3079,7 +3068,7 @@ class TestDockerCompose(_CheckTestBase):
                      Unable to parse Docker Compose version, at least version 1.18 is required.
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
@@ -3093,7 +3082,7 @@ class TestDockerCompose(_CheckTestBase):
                      See installation instructions at https://docs.docker.com/compose/install/.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -3102,11 +3091,11 @@ class TestDockerCompose(_CheckTestBase):
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-             FAIL -- docker-compose
-                     Unexpected error: test exception
+            ERROR -- docker-compose
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestPyYAML(_CheckTestBase):
@@ -3119,7 +3108,7 @@ class TestPyYAML(_CheckTestBase):
         """Test the success case."""
         with mock.patch("builtins.__import__"):
             result, output = self.perform_check(capsys)
-        assert textwrap.dedent(output) == f" PASS -- PyYAML (installed)\n"
+        assert textwrap.dedent(output) == f"PASS -- PyYAML (installed)\n"
         assert result.is_success()
 
     def test_unavailable(self, capsys):
@@ -3133,7 +3122,7 @@ class TestPyYAML(_CheckTestBase):
                      Install with 'python3 -m pip install pyyaml'.
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
@@ -3143,11 +3132,11 @@ class TestPyYAML(_CheckTestBase):
             result, output = self.perform_check(capsys)
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-             FAIL -- PyYAML
-                     Unexpected error: test exception
+            ERROR -- PyYAML
+                     Command timed out: test exception
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
 
 
 class TestBridgeIptables(_CheckTestBase):
@@ -3164,7 +3153,7 @@ class TestBridgeIptables(_CheckTestBase):
         """Test the success case."""
         result, output = self.perform_check(capsys, read_effects=["0", "0"])
         assert (
-            textwrap.dedent(output) == " PASS -- Bridge iptables (disabled)\n"
+            textwrap.dedent(output) == "PASS -- Bridge iptables (disabled)\n"
         )
         assert result.is_success()
 
@@ -3187,7 +3176,7 @@ class TestBridgeIptables(_CheckTestBase):
                        sysctl -w net.bridge.bridge-nf-call-ip6tables=0
             """
         )
-        assert not result.is_success()
+        assert result.is_failure()
 
     def test_error(self, capsys):
         """Test error being raised."""
@@ -3209,4 +3198,4 @@ class TestBridgeIptables(_CheckTestBase):
                        sysctl -w net.bridge.bridge-nf-call-ip6tables=0
             """
         )
-        assert not result.is_success()
+        assert result is CheckState.ERROR
