@@ -1492,9 +1492,12 @@ def perform_checks(checks: List[Check]) -> Mapping[str, CheckState]:
                 else:
                     status = CheckState.SUCCESS
                     msg = None
-            except (CmdTimeoutError, Exception) as e:
+            except CmdTimeoutError as e:
                 status = CheckState.ERROR
                 msg = f"Command timed out: {e}"
+            except Exception as e:
+                status = CheckState.ERROR
+                msg = f"Unexpected error: {e}"
         else:
             status = CheckState.SKIPPED
             msg = "Skipped due to failed checks: {}".format(", ".join(deps))

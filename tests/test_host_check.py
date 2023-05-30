@@ -943,7 +943,7 @@ class TestCPUCores(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU cores
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -1105,7 +1105,7 @@ class TestBaseKernelModules(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Base kernel modules
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2021,7 +2021,7 @@ Swap:   31798079488  2008911872 29789167616
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- RAM
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2093,7 +2093,7 @@ class TestCPUExtensions(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU extensions
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2274,7 +2274,7 @@ class TestHugepages(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Hugepages
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2455,7 +2455,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Interface kernel driver
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2737,7 +2737,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- IOMMU
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2850,7 +2850,7 @@ class TestSharedMemPageMaxSize(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Shared memory pages max size
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -2931,7 +2931,7 @@ class TestDockerClient(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Docker client
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -3005,7 +3005,7 @@ class TestDockerDaemon(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Docker daemon
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -3076,7 +3076,7 @@ class TestDtypeSupport(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Docker supports d_type
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -3166,7 +3166,7 @@ class TestDockerCompose(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- docker-compose
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
@@ -3207,7 +3207,7 @@ class TestPyYAML(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- PyYAML
-                     Command timed out: test exception
+                     Unexpected error: test exception
             """
         )
         assert result is CheckState.ERROR
