@@ -1499,7 +1499,7 @@ def perform_checks(checks: List[Check]) -> Mapping[str, CheckState]:
 
 
 def run_if_extra_checks(
-    extra_checks: List[str] = [],
+    extra_checks: Optional[List[str]] = None,
 ) -> Tuple[Set[str], Set[str], Set[str]]:
     """
     Run the specified extra checks, printing the results and returning the

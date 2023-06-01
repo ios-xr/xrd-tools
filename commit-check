@@ -65,7 +65,7 @@ fi
 
 echo
 echo "Running tests..."
-if ! pytest; then
+if ! pytest -vv --cov; then
     echo "Tests failed, check output and fix issues." >&2
     FAILURES=$((FAILURES+1))
 fi

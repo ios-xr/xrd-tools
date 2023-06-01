@@ -251,7 +251,7 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ============================================================================
 Host environment set up correctly for xrd-control-plane
@@ -267,7 +267,7 @@ Host environment set up correctly for xrd-control-plane
 ==============================
 Platform checks - xrd-vrouter
 ==============================
-Checks: {BASE_CHECKS_STR} {VROUTER_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {VROUTER_CHECKS_STR}
 
 ============================================================================
 Host environment set up correctly for xrd-vrouter
@@ -285,7 +285,7 @@ Host environment set up correctly for xrd-vrouter
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ==============================
 Extra checks
@@ -313,7 +313,7 @@ Extra checks passed: docker
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ==============================
 Extra checks
@@ -341,7 +341,7 @@ Extra checks passed: xr-compose
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ==============================
 Extra checks
@@ -531,7 +531,7 @@ Extra checks errored: docker
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ============================================================================
 !! Host NOT set up correctly for xrd-control-plane !!
@@ -551,7 +551,7 @@ Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ============================================================================
 !! One or more platform checks could not be performed, see errors above !!
@@ -705,7 +705,7 @@ Extra checks failed: xr-compose
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ==============================
 Extra checks
@@ -740,7 +740,7 @@ Extra checks failed: xr-compose
 ==============================
 Platform checks - xrd-control-plane
 ==============================
-Checks: {BASE_CHECKS_STR} {CONTROL_PLANE_CHECKS_STR}
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 
 ==============================
 Extra checks
@@ -953,7 +953,7 @@ class TestCPUCores(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- CPU cores
-                     Command timed out: Timed out while executing command: {" ".join(self.cmds)}
+                     Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
         assert result is CheckState.ERROR
@@ -1115,7 +1115,7 @@ class TestBaseKernelModules(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             ERROR -- Base kernel modules
-                     Command timed out: Timed out while executing command: {" ".join(self.cmds)}
+                     Unexpected error: Timed out while executing command: {" ".join(self.cmds)}
             """
         )
         assert result is CheckState.ERROR
@@ -1342,7 +1342,7 @@ class _TestInotifyLimitsBase(_CheckTestBase):
                       sysctl -w fs.inotify.{self.inotify_param}=64000
             """
         )
-        assert result is CheckState.FAILED
+        assert result is CheckState.WARNING
 
     def test_error(self, capsys):
         """Test error being raised."""
