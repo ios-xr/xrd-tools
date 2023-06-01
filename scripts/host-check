@@ -237,16 +237,6 @@ def print_subheading(subheading: str) -> None:
     print("\n" + subheading + "\n-----------------------")
 
 
-def print_without_newline(string: str) -> None:
-    """
-    Print a string but don't add a newline afterwards.
-
-    :param string:
-        The string to print.
-    """
-    print(string, end="")
-
-
 def _is_module_installed(module: str) -> bool:
     """
     Check if a module is named in any of the listed modules.
@@ -314,24 +304,27 @@ def _get_cgroup_version() -> int:
 class CheckState(enum.Enum):
     """The result state of a check."""
 
+    # 'success' check states
     SUCCESS = "success"
     NEUTRAL = "neutral"
-
+    # 'failure' check states
     WARNING = "warning"
     SKIPPED = "skipped"
     FAILED = "failed"
-
-    ERROR = "error"  # Check state for when the check fails to run/errors
+    # Check state for when the check fails to run/errors
+    # Note: this is neither 'success' nor 'failure'
+    ERROR = "error"
 
     def is_failure(self) -> bool:
+        """
+        Returns True for check states that are classed as 'failure'.
+        Note: errors (CheckState.ERROR) are treated as separate.
+        """
         return self in [
             CheckState.FAILED,
             CheckState.SKIPPED,
             CheckState.WARNING,
         ]
-
-    def is_success(self) -> bool:
-        return self in [CheckState.SUCCESS, CheckState.NEUTRAL]
 
 
 CheckFuncReturn = Optional[Tuple[CheckState, str]]
@@ -1492,9 +1485,6 @@ def perform_checks(checks: List[Check]) -> Mapping[str, CheckState]:
                 else:
                     status = CheckState.SUCCESS
                     msg = None
-            except CmdTimeoutError as e:
-                status = CheckState.ERROR
-                msg = f"Command timed out: {e}"
             except Exception as e:
                 status = CheckState.ERROR
                 msg = f"Unexpected error: {e}"
@@ -1506,6 +1496,63 @@ def perform_checks(checks: List[Check]) -> Mapping[str, CheckState]:
         results[name] = status
 
     return results
+
+
+def run_if_extra_checks(
+    extra_checks: List[str] = [],
+) -> Tuple[Set[str], Set[str], Set[str]]:
+    """
+    Run the specified extra checks, printing the results and returning the
+    checks that succeeded, failed and errored.
+    :param extra_checks:
+        List of extra checks to perform.
+    :returns:
+        Tuple of the checks that: succeeded, failed and errored.
+    """
+    extras_supported = set()
+    extras_not_supported = set()
+    extras_errored = set()
+
+    if extra_checks:
+        print("")  # insert a newline
+        print_heading("Extra checks")
+        for extra_check in sorted(extra_checks):
+            print_subheading(f"{extra_check} checks")
+            extra_results = perform_checks(EXTRA_CHECKS_MAP[extra_check])
+
+            if any(check.is_failure() for check in extra_results.values()):
+                extras_not_supported.add(extra_check)
+            elif any(c is CheckState.ERROR for c in extra_results.values()):
+                extras_errored.add(extra_check)
+            else:
+                extras_supported.add(extra_check)
+
+    return extras_supported, extras_not_supported, extras_errored
+
+
+def print_extra_checks_summary(
+    extras_supported: Set[str],
+    extras_not_supported: Set[str],
+    extras_errored: Set[str],
+) -> None:
+    """
+    Print a summary of the extra checks that passed and failed.
+    :param extras_supported:
+        The checks that were successful.
+    :param extras_not_supported:
+        The checks that were not successful.
+    :param extras_errored:
+        The checks that errored/failed to run.
+    """
+    print(f"{DASHED_LINE}")
+    if extras_supported:
+        print("Extra checks passed: " + ", ".join(sorted(extras_supported)))
+    if extras_not_supported:
+        print(
+            "Extra checks failed: " + ", ".join(sorted(extras_not_supported))
+        )
+    if extras_errored:
+        print("Extra checks errored: " + ", ".join(sorted(extras_errored)))
 
 
 def run_checks_specific_platform(
@@ -1522,60 +1569,33 @@ def run_checks_specific_platform(
     :return:
         Whether all checks that were performed succeeded.
     """
-    extras_supported: Set[str] = set()
-    extras_not_supported: Set[str] = set()
-    extras_errored: Set[str] = set()
 
     print_heading(f"Platform checks - {platform}")
     plat_results = perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform])
     plat_failure = any(check.is_failure() for check in plat_results.values())
     plat_error = any(c is CheckState.ERROR for c in plat_results.values())
 
-    if extra_checks:
-        print("")  # insert a newline
-        print_heading("Extra checks")
-        for extra_check in sorted(extra_checks):
-            print_subheading(f"{extra_check} checks")
-            extra_results = perform_checks(EXTRA_CHECKS_MAP[extra_check])
-
-            if any(check.is_failure() for check in extra_results.values()):
-                extras_not_supported.add(extra_check)
-            elif any(c is CheckState.ERROR for c in extra_results.values()):
-                extras_errored.add(extra_check)
-            else:
-                extras_supported.add(extra_check)
+    (
+        extras_supported,
+        extras_not_supported,
+        extras_errored,
+    ) = run_if_extra_checks(extra_checks)
 
     # Print a summary of what is and is not supported
-    print_without_newline(f"\n{DOUBLE_DASHED_LINE}")
+    print(f"\n{DOUBLE_DASHED_LINE}")
     if plat_failure:
-        print_without_newline(
-            f"\n!! Host NOT set up correctly for {platform} !!"
-        )
+        print(f"!! Host NOT set up correctly for {platform} !!")
     elif plat_error:
-        print_without_newline(
-            "\n!! One or more platform checks could not be performed, see errors above !!"
+        print(
+            "!! One or more platform checks could not be performed, see errors above !!"
         )
     else:
-        print_without_newline(
-            f"\nHost environment set up correctly for {platform}"
-        )
-    # Print the result of any extra checks
+        print(f"Host environment set up correctly for {platform}")
     if extra_checks:
-        print_without_newline(f"\n{DASHED_LINE}")
-        if extras_supported:
-            print_without_newline(
-                "\nExtra checks passed: " + ", ".join(sorted(extras_supported))
-            )
-        if extras_not_supported:
-            print_without_newline(
-                "\nExtra checks failed: "
-                + ", ".join(sorted(extras_not_supported))
-            )
-        if any(c is CheckState.ERROR for c in extra_results.values()):
-            print_without_newline(
-                "\nExtra checks errored: " + ", ".join(sorted(extras_errored))
-            )
-    print(f"\n{DOUBLE_DASHED_LINE}")
+        print_extra_checks_summary(
+            extras_supported, extras_not_supported, extras_errored
+        )
+    print(f"{DOUBLE_DASHED_LINE}")
 
     return not (
         plat_failure or plat_error or extras_not_supported or extras_errored
@@ -1592,9 +1612,6 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
     platforms_supported: Set[str] = set()
     platforms_not_supported: Set[str] = set()
     platforms_errored: Set[str] = set()
-    extras_supported: Set[str] = set()
-    extras_not_supported: Set[str] = set()
-    extras_errored: Set[str] = set()
 
     print_heading("Platform checks")
     print_subheading("base checks")
@@ -1602,63 +1619,45 @@ def run_checks_all_platforms(extra_checks: List[str]) -> bool:
     for platform, checks in PLATFORM_CHECKS_MAP.items():
         print_subheading(f"{platform} checks")
         plat_results = perform_checks(checks)
-        b_and_p_results = list(base_results.values()) + list(
+        base_and_plat_results = list(base_results.values()) + list(
             plat_results.values()
         )
-        if any(result.is_failure() for result in b_and_p_results):
+        if any(result.is_failure() for result in base_and_plat_results):
             platforms_not_supported.add(platform)
-        elif any(result is CheckState.ERROR for result in b_and_p_results):
+        elif any(
+            result is CheckState.ERROR for result in base_and_plat_results
+        ):
             platforms_errored.add(platform)
         else:
             platforms_supported.add(platform)
 
-    if extra_checks:
-        print("")  # insert a newline
-        print_heading("Extra checks")
-        for extra_check in sorted(extra_checks):
-            print_subheading(f"{extra_check} checks")
-            extra_results = perform_checks(EXTRA_CHECKS_MAP[extra_check])
-
-            if any(check.is_failure() for check in extra_results.values()):
-                extras_not_supported.add(extra_check)
-            elif any(c is CheckState.ERROR for c in extra_results.values()):
-                extras_errored.add(extra_check)
-            else:
-                extras_supported.add(extra_check)
+    (
+        extras_supported,
+        extras_not_supported,
+        extras_errored,
+    ) = run_if_extra_checks(extra_checks)
 
     # Print a summary of what is and is not supported
-    print_without_newline(f"\n{DOUBLE_DASHED_LINE}")
+    print(f"\n{DOUBLE_DASHED_LINE}")
     if platforms_supported:
-        print_without_newline(
-            "\nXR platforms supported: "
-            + ", ".join(sorted(platforms_supported))
+        print(
+            "XR platforms supported: " + ", ".join(sorted(platforms_supported))
         )
     if platforms_not_supported:
-        print_without_newline(
-            "\nXR platforms NOT supported: "
+        print(
+            "XR platforms NOT supported: "
             + ", ".join(sorted(platforms_not_supported))
         )
     if platforms_errored:
-        print_without_newline(
-            "\n!! One or more platform checks could not be performed, see errors above !!"
+        print(
+            "!! One or more platform checks could not be performed, see errors above !!"
         )
     # Print the result of any extra checks
     if extra_checks:
-        print_without_newline(f"\n{DASHED_LINE}")
-        if extras_supported:
-            print_without_newline(
-                "\nExtra checks passed: " + ", ".join(sorted(extras_supported))
-            )
-        if extras_not_supported:
-            print_without_newline(
-                "\nExtra checks failed: "
-                + ", ".join(sorted(extras_not_supported))
-            )
-        if any(c is CheckState.ERROR for c in extra_results.values()):
-            print_without_newline(
-                "\nExtra checks errored: " + ", ".join(sorted(extras_errored))
-            )
-    print(f"\n{DOUBLE_DASHED_LINE}")
+        print_extra_checks_summary(
+            extras_supported, extras_not_supported, extras_errored
+        )
+    print(f"{DOUBLE_DASHED_LINE}")
 
     return len(platforms_supported) > 0
 
