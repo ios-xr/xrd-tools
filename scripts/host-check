@@ -94,6 +94,18 @@ REQUIRED_CGROUP_MOUNTS = ["systemd", "memory", "pids", "cpu", "cpuset"]
 DASHED_LINE = "----------------------------------------------------------------------------"
 DOUBLE_DASHED_LINE = "============================================================================"
 
+# Default values of runtime parameters of kernel modules
+MODULE_DEFAULT_PARAM = {
+    "vfio-pci": {
+        "nointxmask": "N",
+        "disable_idle_d3": "N",
+        "enable_sriov": "N",
+    },
+    "igb_uio": {
+        "intr_mode": "msix",
+    },
+}
+
 # -----------------------------------------------------------------------------
 # Colours
 # -----------------------------------------------------------------------------
@@ -1169,6 +1181,68 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
     return CheckState.SUCCESS, f"{shared_mem_max_page_size:.1f} GiB"
 
 
+def check_module_non_default_params() -> CheckFuncReturn:
+    """
+    Checks the kernel modules have been loaded with default runtime parameters
+    (Checks parameters in MODULE_DEFAULT_PARAM)
+    """
+    all_modules_str = ""
+    for module, param_defaults in MODULE_DEFAULT_PARAM.items():
+        module_str = ""
+        if not _is_module_loaded(
+            module.replace("-", "_")
+        ) and not _is_module_builtin(module):
+            # Skip module param check if module is not loaded
+            continue
+        # sysfs filesystem requires the underscore version of the kernel module
+        # name
+        module = module.replace("-", "_")
+        all_params_str, _ = run_cmd(["modinfo", "--field", "parm", module])
+        param_non_default = []
+        param_check_fail = []
+        for param, def_val in param_defaults.items():
+            if not re.search(rf"^{param}:", all_params_str, re.MULTILINE):
+                # if 'param' is absent in modinfo output, it means either the
+                # parameter was introduced in a later kernel version, or the
+                # specific linux distribution does not support the parameter.
+                continue
+            try:
+                path = f"/sys/module/{module}/parameters/{param}"
+                with open(path, "r", encoding="utf-8") as f:
+                    param_val = f.read().strip()
+                # (null) implies the parameter isn't set, and is thus the
+                # default value
+                if param_val != def_val and param_val != "(null)":
+                    param_non_default.append((param, def_val, param_val))
+            except FileNotFoundError:
+                param_check_fail.append(param)
+
+        for param, def_val, param_val in param_non_default:
+            module_str += (
+                f"\nThe default value for parameter {param} is {def_val},"
+                f" but it is set to {param_val}"
+            )
+        if param_check_fail:
+            module_str += (
+                "\nFailed to check paramter value for parameter(s): "
+                + ", ".join(param_check_fail)
+                + "\nUser likely has insufficient permission"
+            )
+        if module_str:
+            all_modules_str += f"\nFor kernel module: {module}{module_str}"
+    if all_modules_str:
+        return (
+            CheckState.NEUTRAL,
+            "XRd has only been tested with default kernel module parameters."
+            + all_modules_str,
+        )
+    else:
+        return (
+            CheckState.SUCCESS,
+            "Kernel modules loaded with default parameters.",
+        )
+
+
 # -------------------------------------
 # Docker checks
 # -------------------------------------
@@ -1384,6 +1458,7 @@ BASE_CHECKS = [
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
+    Check("Kernel module parameters", check_module_non_default_params, []),
 ]
 
 CONTROL_PLANE_CHECKS = [
