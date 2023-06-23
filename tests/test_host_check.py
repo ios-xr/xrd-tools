@@ -1933,6 +1933,7 @@ class TestUDPParameters(_CheckTestBase):
 
 
 class TestKernelModuleParameters(_CheckTestBase):
+    """Tests for default Kernel Parameters check."""
 
     check_group = "base"
     check_name = "Kernel module parameters"

@@ -1212,7 +1212,7 @@ def check_module_non_default_params() -> CheckFuncReturn:
                     param_val = f.read().strip()
                 # (null) implies the parameter isn't set, and is thus the
                 # default value
-                if param_val != def_val and param_val != "(null)":
+                if param_val not in (def_val, "(null)"):
                     param_non_default.append((param, def_val, param_val))
             except FileNotFoundError:
                 param_check_fail.append(param)
