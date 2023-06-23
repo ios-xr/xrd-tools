@@ -1244,7 +1244,7 @@ def check_module_non_default_params() -> CheckFuncReturn:
         for param, param_val in param_non_default.items():
             module_str += (
                 f"\nThe default value for parameter {param} is "
-                f" {param_defaults[param]}, but it is set to {param_val}"
+                f"{param_defaults[param]}, but it is set to {param_val}"
             )
         if param_check_fail:
             module_str += (
