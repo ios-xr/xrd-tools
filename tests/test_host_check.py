@@ -2046,7 +2046,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
             """\
             INFO -- Kernel module parameters
                     XRd has only been tested with default kernel module parameters.
-                    For kernel module: vfio_pci
+                    For kernel module: vfio-pci
                     The default value for parameter disable_idle_d3 is N, but it is set to Y
             """
         )
@@ -2070,7 +2070,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
             """\
             INFO -- Kernel module parameters
                     XRd has only been tested with default kernel module parameters.
-                    For kernel module: vfio_pci
+                    For kernel module: vfio-pci
                     The default value for parameter disable_idle_d3 is N, but it is set to Y
                     For kernel module: igb_uio
                     The default value for parameter intr_mode is msix, but it is set to legacy
