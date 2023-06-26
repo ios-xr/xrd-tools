@@ -2141,8 +2141,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
             INFO -- Kernel module parameters
                     XRd has only been tested with default kernel module parameters.
                     For kernel module: igb_uio
-                    Failed to check paramter value for parameter(s): intr_mode
-                    User likely has insufficient permission
+                    Failed to check value for parameter: intr_mode
             """
         )
         assert result is CheckState.NEUTRAL
