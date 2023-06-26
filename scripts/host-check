@@ -1199,7 +1199,7 @@ def _check_module_param(
         If failed to check value for a parameter, returns None as the dict
         value for the parameter
     """
-    param_unexpected = {}
+    param_unexpected: Dict[str, Optional[str]] = {}
 
     if not _is_module_loaded(
         module.replace("-", "_")
