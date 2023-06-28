@@ -1220,8 +1220,6 @@ def _module_params_compare(
             path = f"/sys/module/{module}/parameters/{param}"
             with open(path, "r", encoding="utf-8") as f:
                 param_val = f.read().strip()
-            # (null) implies the parameter isn't set, and is thus the
-            # default value
             if param_val not in exp_val:
                 param_unexpected[param] = param_val
         except FileNotFoundError:
