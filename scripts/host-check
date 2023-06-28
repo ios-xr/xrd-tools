@@ -97,12 +97,12 @@ DOUBLE_DASHED_LINE = "==========================================================
 # Kernel parameter values which XRd expects and has been tested with.
 MODULE_EXPECTED_PARAMS = {
     "vfio-pci": {
-        "nointxmask": "N",
-        "disable_idle_d3": "N",
-        "enable_sriov": "N",
+        "nointxmask": {"N"},
+        "disable_idle_d3": {"N"},
+        "enable_sriov": {"N"},
     },
     "igb_uio": {
-        "intr_mode": "msix",
+        "intr_mode": {"msix", "(null)"},
     },
 }
 
@@ -1182,7 +1182,7 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
 
 
 def _module_params_compare(
-    module: str, exp_param_vals: Dict[str, str]
+    module: str, exp_param_vals: Dict[str, Set[str]]
 ) -> Dict[str, Optional[str]]:
     """
     For a kernel module, check if the runtime parameters have the expected
@@ -1222,7 +1222,7 @@ def _module_params_compare(
                 param_val = f.read().strip()
             # (null) implies the parameter isn't set, and is thus the
             # default value
-            if param_val not in (exp_val, "(null)"):
+            if param_val not in exp_val:
                 param_unexpected[param] = param_val
         except FileNotFoundError:
             param_unexpected[param] = None
@@ -1243,7 +1243,7 @@ def check_modules_expected_params() -> CheckFuncReturn:
             if param_val is not None:
                 module_str += (
                     f"\nThe expected value for parameter {param} is "
-                    f"{param_defaults[param]}, but it is set to {param_val}"
+                    f"{'/'.join(param_defaults[param])}, but it is set to {param_val}"
                 )
             else:
                 module_str += f"\nFailed to check value for parameter: {param}"
@@ -1252,7 +1252,7 @@ def check_modules_expected_params() -> CheckFuncReturn:
             all_modules_str += f"\nFor kernel module: {module}{module_str}"
     if all_modules_str:
         return (
-            CheckState.NEUTRAL,
+            CheckState.WARNING,
             "XRd has not been tested with these kernel module parameters."
             + all_modules_str,
         )

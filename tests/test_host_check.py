@@ -2044,13 +2044,13 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-            INFO -- Kernel module parameters
+            WARN -- Kernel module parameters
                     XRd has not been tested with these kernel module parameters.
                     For kernel module: vfio-pci
                        The expected value for parameter disable_idle_d3 is N, but it is set to Y
             """
         )
-        assert result is CheckState.NEUTRAL
+        assert result is CheckState.WARNING
 
     def test_two_parm_non_default(self, capsys):
         """Test two parameters having non-default values."""
@@ -2068,15 +2068,15 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-            INFO -- Kernel module parameters
+            WARN -- Kernel module parameters
                     XRd has not been tested with these kernel module parameters.
                     For kernel module: vfio-pci
                        The expected value for parameter disable_idle_d3 is N, but it is set to Y
                     For kernel module: igb_uio
-                       The expected value for parameter intr_mode is msix, but it is set to legacy
+                       The expected value for parameter intr_mode is msix/(null), but it is set to legacy
             """
         )
-        assert result is CheckState.NEUTRAL
+        assert result is CheckState.WARNING
 
     def test_one_module_not_loaded(self, capsys):
         """Test where one module is not loaded."""
@@ -2138,13 +2138,13 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-            INFO -- Kernel module parameters
+            WARN -- Kernel module parameters
                     XRd has not been tested with these kernel module parameters.
                     For kernel module: igb_uio
                        Failed to check value for parameter: intr_mode
             """
         )
-        assert result is CheckState.NEUTRAL
+        assert result is CheckState.WARNING
 
     def test_parm_null_value(self, capsys):
         """Test one parameter having (null) value"""
