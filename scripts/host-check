@@ -94,9 +94,8 @@ REQUIRED_CGROUP_MOUNTS = ["systemd", "memory", "pids", "cpu", "cpuset"]
 DASHED_LINE = "----------------------------------------------------------------------------"
 DOUBLE_DASHED_LINE = "============================================================================"
 
-# Default values of runtime parameters of kernel modules
 # Kernel parameter values which XRd expects and has been tested with.
-MODULE_DEFAULT_PARAM = {
+MODULE_EXPECTED_PARAMS = {
     "vfio-pci": {
         "nointxmask": "N",
         "disable_idle_d3": "N",
@@ -1182,7 +1181,7 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
     return CheckState.SUCCESS, f"{shared_mem_max_page_size:.1f} GiB"
 
 
-def _module_param_compare(
+def _module_params_compare(
     module: str, exp_param_vals: Dict[str, str]
 ) -> Dict[str, Optional[str]]:
     """
@@ -1231,21 +1230,19 @@ def _module_param_compare(
     return param_unexpected
 
 
-def check_module_non_default_params() -> CheckFuncReturn:
+def check_modules_expected_params() -> CheckFuncReturn:
     """
-    Checks the kernel modules have been loaded with default runtime parameters
-    (Checks parameters in MODULE_DEFAULT_PARAM)
-    XRd only uses default parameters, and that this check would need to change
-    if XRd required a non-default parameter to be set.
+    Checks the kernel modules have been loaded with expected runtime parameters
+    (Checks parameters in MODULE_EXPECTED_PARAMS)
     """
     all_modules_str = ""
-    for module, param_defaults in MODULE_DEFAULT_PARAM.items():
+    for module, param_defaults in MODULE_EXPECTED_PARAMS.items():
         module_str = ""
-        param_non_default = _module_param_compare(module, param_defaults)
+        param_non_default = _module_params_compare(module, param_defaults)
         for param, param_val in param_non_default.items():
             if param_val is not None:
                 module_str += (
-                    f"\nThe default value for parameter {param} is "
+                    f"\nThe expected value for parameter {param} is "
                     f"{param_defaults[param]}, but it is set to {param_val}"
                 )
             else:
@@ -1256,13 +1253,13 @@ def check_module_non_default_params() -> CheckFuncReturn:
     if all_modules_str:
         return (
             CheckState.NEUTRAL,
-            "XRd has only been tested with default kernel module parameters."
+            "XRd has not been tested with these kernel module parameters."
             + all_modules_str,
         )
     else:
         return (
             CheckState.SUCCESS,
-            "Kernel modules loaded with default parameters.",
+            "Kernel modules loaded with expected parameters.",
         )
 
 
@@ -1481,7 +1478,7 @@ BASE_CHECKS = [
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
-    Check("Kernel module parameters", check_module_non_default_params, []),
+    Check("Kernel module parameters", check_modules_expected_params, []),
 ]
 
 CONTROL_PLANE_CHECKS = [

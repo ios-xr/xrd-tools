@@ -7,7 +7,7 @@ The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.9.1.
 
 ### v1.1.11 (2023-06-23)
 
-- Add a check in `host-check` to verify the default kernel modules parameters are being used.
+- Add a check in `host-check` to verify the correct kernel modules parameters are being used.
 
 ### v1.1.10 (2023-05-30)
 

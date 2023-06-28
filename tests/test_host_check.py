@@ -1995,7 +1995,7 @@ wc_activate:Activate support for write combining (WC) (default=0)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             PASS -- Kernel module parameters
-                    Kernel modules loaded with default parameters.
+                    Kernel modules loaded with expected parameters.
             """
         )
         assert result is CheckState.SUCCESS
@@ -2023,7 +2023,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             PASS -- Kernel module parameters
-                    Kernel modules loaded with default parameters.
+                    Kernel modules loaded with expected parameters.
             """
         )
         assert result is CheckState.SUCCESS
@@ -2045,9 +2045,9 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             INFO -- Kernel module parameters
-                    XRd has only been tested with default kernel module parameters.
+                    XRd has not been tested with these kernel module parameters.
                     For kernel module: vfio-pci
-                       The default value for parameter disable_idle_d3 is N, but it is set to Y
+                       The expected value for parameter disable_idle_d3 is N, but it is set to Y
             """
         )
         assert result is CheckState.NEUTRAL
@@ -2069,11 +2069,11 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             INFO -- Kernel module parameters
-                    XRd has only been tested with default kernel module parameters.
+                    XRd has not been tested with these kernel module parameters.
                     For kernel module: vfio-pci
-                       The default value for parameter disable_idle_d3 is N, but it is set to Y
+                       The expected value for parameter disable_idle_d3 is N, but it is set to Y
                     For kernel module: igb_uio
-                       The default value for parameter intr_mode is msix, but it is set to legacy
+                       The expected value for parameter intr_mode is msix, but it is set to legacy
             """
         )
         assert result is CheckState.NEUTRAL
@@ -2095,7 +2095,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             PASS -- Kernel module parameters
-                    Kernel modules loaded with default parameters.
+                    Kernel modules loaded with expected parameters.
             """
         )
         assert result is CheckState.SUCCESS
@@ -2117,7 +2117,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             PASS -- Kernel module parameters
-                    Kernel modules loaded with default parameters.
+                    Kernel modules loaded with expected parameters.
             """
         )
         assert result is CheckState.SUCCESS
@@ -2139,7 +2139,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             INFO -- Kernel module parameters
-                    XRd has only been tested with default kernel module parameters.
+                    XRd has not been tested with these kernel module parameters.
                     For kernel module: igb_uio
                        Failed to check value for parameter: intr_mode
             """
@@ -2163,7 +2163,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             PASS -- Kernel module parameters
-                    Kernel modules loaded with default parameters.
+                    Kernel modules loaded with expected parameters.
             """
         )
         assert result is CheckState.SUCCESS
