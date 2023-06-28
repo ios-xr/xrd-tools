@@ -2147,7 +2147,7 @@ disable_denylist:Disable use of device denylist. Disabling the deny...
         assert result is CheckState.WARNING
 
     def test_parm_null_value(self, capsys):
-        """Test one parameter having (null) value"""
+        """Test intr_mode parameter having (null) value"""
         cmd_outputs = [
             "",
             None,
