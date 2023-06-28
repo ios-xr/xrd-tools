@@ -97,12 +97,12 @@ DOUBLE_DASHED_LINE = "==========================================================
 # Kernel parameter values which XRd expects and has been tested with.
 MODULE_EXPECTED_PARAMS = {
     "vfio-pci": {
-        "nointxmask": {"N"},
-        "disable_idle_d3": {"N"},
-        "enable_sriov": {"N"},
+        "nointxmask": ["N"],
+        "disable_idle_d3": ["N"],
+        "enable_sriov": ["N"],
     },
     "igb_uio": {
-        "intr_mode": {"msix", "(null)"},
+        "intr_mode": ["msix", "(null)"],
     },
 }
 
@@ -1182,7 +1182,7 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
 
 
 def _module_params_compare(
-    module: str, exp_param_vals: Dict[str, Set[str]]
+    module: str, exp_param_vals: Dict[str, List[str]]
 ) -> Dict[str, Optional[str]]:
     """
     For a kernel module, check if the runtime parameters have the expected
