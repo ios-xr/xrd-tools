@@ -60,7 +60,7 @@ def perform_check(
     name: str,
     *,
     cmds: Optional[Union[Tuple[str, Any], List[Tuple[str, Any]]]] = None,
-    files: Optional[Union[Tuple[str, str], List[Tuple[str, str]]]] = None,
+    files: Optional[Union[Tuple[str, Any], List[Tuple[str, Any]]]] = None,
     deps: Optional[List[str]] = None,
     failed_deps: Optional[List[str]] = None,
 ) -> Tuple[CheckState, str]:
@@ -142,7 +142,8 @@ def perform_check(
                     effects.append(
                         mock.mock_open(read_data=effect).return_value
                     )
-                else:
+                # Skip file if effect is None
+                elif effect is not None:
                     effects.append(effect)
             mock_open = ctxs.enter_context(
                 mock.patch("builtins.open", side_effect=effects)
@@ -166,7 +167,8 @@ def perform_check(
     # Check the expected files were read.
     if files:
         actual_files = [call[0][0] for call in mock_open.call_args_list]
-        assert [f for f, _ in files] == actual_files
+        # Only expect the "not None" files to be read.
+        assert [f for f, e in files if e is not None] == actual_files
 
     output = capsys.readouterr().out
     if deps:
@@ -1928,6 +1930,243 @@ class TestUDPParameters(_CheckTestBase):
             """
         )
         assert result is CheckState.ERROR
+
+
+class TestKernelModuleParameters(_CheckTestBase):
+    """Tests for default Kernel Parameters check."""
+
+    check_group = "base"
+    check_name = "Kernel module parameters"
+    files = [
+        "/sys/module/vfio_pci/parameters/nointxmask",
+        "/sys/module/vfio_pci/parameters/disable_idle_d3",
+        "/sys/module/vfio_pci/parameters/enable_sriov",
+        "/sys/module/igb_uio/parameters/intr_mode",
+    ]
+    cmds = [
+        "lsmod | grep -q '^vfio_pci '",  # loaded
+        "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",  # builtin
+        "modinfo --field parm vfio_pci",
+        "lsmod | grep -q '^igb_uio '",  # loaded
+        "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",  # builtin
+        "modinfo --field parm igb_uio",
+    ]
+    # Output of 'modinfo --field parm vfio_pci' with all parameters enabled
+    vfio_pci_parms = """\
+ids:Initial PCI IDs to add to the vfio driver, format is "vendor:device...
+nointxmask:Disable support for PCI 2.3 style INTx masking.  If this ...
+disable_idle_d3:Disable using the PCI D3 low power state for ...
+enable_sriov:Enable support for SR-IOV configuration.  Enabling S...
+disable_denylist:Disable use of device denylist. Disabling the deny...
+        """
+    # Output of 'modinfo --field parm igb_uio' with all parameters enabled
+    igb_uio_parms = """\
+intr_mode:igb_uio interrupt mode (default=msix):
+    msix       Use MSIX interrupt
+    msi        Use MSI interrupt
+    legacy     Use Legacy interrupt
+
+ (charp)
+wc_activate:Activate support for write combining (WC) (default=0)
+    0 - disable
+    other - enable
+ (int)
+        """
+
+    def test_success(self, capsys):
+        """
+        Test the success case.
+        Both modules loaded and all parameters supported and enabled with
+        default values
+        """
+
+        cmd_outputs = [
+            "",
+            None,
+            self.vfio_pci_parms,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = ["N", "N", "N", "msix"]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            PASS -- Kernel module parameters
+                    Kernel modules loaded with expected parameters.
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_one_parm_disable(self, capsys):
+        """Test one parameter not supported by the kernel."""
+        vfio_pci_test_parm = """\
+ids:Initial PCI IDs to add to the vfio driver, format is "vendor:device...
+nointxmask:Disable support for PCI 2.3 style INTx masking.  If this ...
+disable_idle_d3:Disable using the PCI D3 low power state for ...
+disable_denylist:Disable use of device denylist. Disabling the deny...
+        """
+        cmd_outputs = [
+            "",
+            None,
+            vfio_pci_test_parm,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = ["N", "N", None, "msix"]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            PASS -- Kernel module parameters
+                    Kernel modules loaded with expected parameters.
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_one_parm_non_default(self, capsys):
+        """Test one parameter having a non-default value."""
+        cmd_outputs = [
+            "",
+            None,
+            self.vfio_pci_parms,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = ["N", "Y", "N", "msix"]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            WARN -- Kernel module parameters
+                    XRd has not been tested with these kernel module parameters.
+                    For kernel module: vfio-pci
+                       The expected value for parameter disable_idle_d3 is N, but it is set to Y
+            """
+        )
+        assert result is CheckState.WARNING
+
+    def test_two_parm_non_default(self, capsys):
+        """Test two parameters having non-default values."""
+        cmd_outputs = [
+            "",
+            None,
+            self.vfio_pci_parms,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = ["N", "Y", "N", "legacy"]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            WARN -- Kernel module parameters
+                    XRd has not been tested with these kernel module parameters.
+                    For kernel module: vfio-pci
+                       The expected value for parameter disable_idle_d3 is N, but it is set to Y
+                    For kernel module: igb_uio
+                       The expected value for parameter intr_mode is msix/(null), but it is set to legacy
+            """
+        )
+        assert result is CheckState.WARNING
+
+    def test_one_module_not_loaded(self, capsys):
+        """Test where one module is not loaded."""
+        cmd_outputs = [
+            subprocess.SubprocessError(1, ""),
+            subprocess.SubprocessError(1, ""),
+            None,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = [None, None, None, "msix"]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            PASS -- Kernel module parameters
+                    Kernel modules loaded with expected parameters.
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_both_module_not_loaded(self, capsys):
+        """Test where both modules are not loaded."""
+        cmd_outputs = [
+            subprocess.SubprocessError(1, ""),
+            subprocess.SubprocessError(1, ""),
+            None,
+            subprocess.SubprocessError(1, ""),
+            subprocess.SubprocessError(1, ""),
+            None,
+        ]
+        files_content = [None, None, None, None]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            PASS -- Kernel module parameters
+                    Kernel modules loaded with expected parameters.
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_parm_file_not_found(self, capsys):
+        """Test one parameter file not being found"""
+        cmd_outputs = [
+            "",
+            None,
+            self.vfio_pci_parms,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = ["N", "N", "N", FileNotFoundError]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            WARN -- Kernel module parameters
+                    XRd has not been tested with these kernel module parameters.
+                    For kernel module: igb_uio
+                       Failed to check value for parameter: intr_mode
+            """
+        )
+        assert result is CheckState.WARNING
+
+    def test_parm_null_value(self, capsys):
+        """Test intr_mode parameter having (null) value"""
+        cmd_outputs = [
+            "",
+            None,
+            self.vfio_pci_parms,
+            "",
+            None,
+            self.igb_uio_parms,
+        ]
+        files_content = ["N", "N", "N", "(null)"]
+        result, output = self.perform_check(
+            capsys, cmd_effects=cmd_outputs, read_effects=files_content
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            PASS -- Kernel module parameters
+                    Kernel modules loaded with expected parameters.
+            """
+        )
+        assert result is CheckState.SUCCESS
 
 
 # -------------------------------------

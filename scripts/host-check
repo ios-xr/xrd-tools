@@ -94,6 +94,18 @@ REQUIRED_CGROUP_MOUNTS = ["systemd", "memory", "pids", "cpu", "cpuset"]
 DASHED_LINE = "----------------------------------------------------------------------------"
 DOUBLE_DASHED_LINE = "============================================================================"
 
+# Kernel parameter values which XRd expects and has been tested with.
+MODULE_EXPECTED_PARAMS = {
+    "vfio-pci": {
+        "nointxmask": ["N"],
+        "disable_idle_d3": ["N"],
+        "enable_sriov": ["N"],
+    },
+    "igb_uio": {
+        "intr_mode": ["msix", "(null)"],
+    },
+}
+
 # -----------------------------------------------------------------------------
 # Colours
 # -----------------------------------------------------------------------------
@@ -1169,6 +1181,86 @@ def check_shmem_pages_max_size() -> CheckFuncReturn:
     return CheckState.SUCCESS, f"{shared_mem_max_page_size:.1f} GiB"
 
 
+def _module_params_compare(
+    module: str, exp_param_vals: Dict[str, List[str]]
+) -> Dict[str, Optional[str]]:
+    """
+    For a kernel module, check if the runtime parameters have the expected
+    values.
+
+    :param module:
+        Name of the module
+
+    :param exp_param_vals:
+        Dictionary mapping parameter name to the expected value of the parameter
+
+    :return:
+        A dict containing parameters with unexpected values
+        If failed to check value for a parameter, returns None as the dict
+        value for the parameter
+    """
+    param_unexpected: Dict[str, Optional[str]] = {}
+
+    if not _is_module_loaded(
+        module.replace("-", "_")
+    ) and not _is_module_builtin(module):
+        # Skip module param check if module is not loaded
+        return param_unexpected
+    # sysfs filesystem requires the underscore version of the kernel module
+    # name
+    module = module.replace("-", "_")
+    all_params_str, _ = run_cmd(["modinfo", "--field", "parm", module])
+    for param, exp_val in exp_param_vals.items():
+        if not re.search(rf"^{param}:", all_params_str, re.MULTILINE):
+            # if 'param' is absent in modinfo output, it means either the
+            # parameter was introduced in a later kernel version, or the
+            # specific linux distribution does not support the parameter.
+            continue
+        try:
+            path = f"/sys/module/{module}/parameters/{param}"
+            with open(path, "r", encoding="utf-8") as f:
+                param_val = f.read().strip()
+            if param_val not in exp_val:
+                param_unexpected[param] = param_val
+        except FileNotFoundError:
+            param_unexpected[param] = None
+
+    return param_unexpected
+
+
+def check_modules_expected_params() -> CheckFuncReturn:
+    """
+    Checks the kernel modules have been loaded with expected runtime parameters
+    (Checks parameters in MODULE_EXPECTED_PARAMS)
+    """
+    all_modules_str = ""
+    for module, param_defaults in MODULE_EXPECTED_PARAMS.items():
+        module_str = ""
+        param_non_default = _module_params_compare(module, param_defaults)
+        for param, param_val in param_non_default.items():
+            if param_val is not None:
+                module_str += (
+                    f"\nThe expected value for parameter {param} is "
+                    f"{'/'.join(param_defaults[param])}, but it is set to {param_val}"
+                )
+            else:
+                module_str += f"\nFailed to check value for parameter: {param}"
+        if module_str:
+            module_str = textwrap.indent(module_str, "   ")
+            all_modules_str += f"\nFor kernel module: {module}{module_str}"
+    if all_modules_str:
+        return (
+            CheckState.WARNING,
+            "XRd has not been tested with these kernel module parameters."
+            + all_modules_str,
+        )
+    else:
+        return (
+            CheckState.SUCCESS,
+            "Kernel modules loaded with expected parameters.",
+        )
+
+
 # -------------------------------------
 # Docker checks
 # -------------------------------------
@@ -1384,6 +1476,7 @@ BASE_CHECKS = [
     Check("Core pattern", check_core_pattern, []),
     Check("ASLR", check_userspace_aslr, []),
     Check("Linux Security Modules", check_linux_security_modules, []),
+    Check("Kernel module parameters", check_modules_expected_params, []),
 ]
 
 CONTROL_PLANE_CHECKS = [
