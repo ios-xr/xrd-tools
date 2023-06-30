@@ -958,9 +958,9 @@ class XRCompose:
                     pass
             else:
                 raise Error(
-                    f"Docker Compose not found.\n"
-                    f"Launching XRd topologies with xr-compose requires docker-compose.\n"
-                    f"See installation instructions at https://docs.docker.com/compose/install/.",
+                    "Docker Compose not found.\n"
+                    "Launching XRd topologies with xr-compose requires docker-compose.\n"
+                    "See installation instructions at https://docs.docker.com/compose/install/.",
                 )
         return self._docker_compose_cmd
 
