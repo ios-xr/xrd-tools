@@ -3353,10 +3353,11 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_success_standalone(self, capsys):
         """Test the success case."""
-        cmd_effects = [subprocess.SubprocessError, "docker-compose version 1.18.0"]
-        result, output = self.perform_check(
-            capsys, cmd_effects=cmd_effects
-        )
+        cmd_effects = [
+            subprocess.SubprocessError,
+            "docker-compose version 1.18.0",
+        ]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert (
             textwrap.dedent(output)
             == "PASS -- docker-compose (version 1.18.0)\n"
@@ -3366,9 +3367,7 @@ class TestDockerCompose(_CheckTestBase):
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
         cmd_effects = [subprocess.SubprocessError, subprocess.SubprocessError]
-        result, output = self.perform_check(
-            capsys, cmd_effects=cmd_effects
-        )
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             FAIL -- docker-compose
@@ -3382,9 +3381,7 @@ class TestDockerCompose(_CheckTestBase):
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
         cmd_effects = ["unexpected output", None]
-        result, output = self.perform_check(
-            capsys, cmd_effects=cmd_effects
-        )
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- docker-compose
@@ -3395,10 +3392,11 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        cmd_effects = [subprocess.SubprocessError, "docker-compose version 1.17.10"]
-        result, output = self.perform_check(
-            capsys, cmd_effects=cmd_effects
-        )
+        cmd_effects = [
+            subprocess.SubprocessError,
+            "docker-compose version 1.17.10",
+        ]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             FAIL -- docker-compose
@@ -3411,9 +3409,7 @@ class TestDockerCompose(_CheckTestBase):
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
         cmd_effects = [Exception("test exception"), None]
-        result, output = self.perform_check(
-            capsys, cmd_effects=cmd_effects
-        )
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- docker-compose

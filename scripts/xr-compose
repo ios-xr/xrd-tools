@@ -948,7 +948,9 @@ class XRCompose:
             standalone = (["docker-compose"], ["--version"])
             for docker_compose, version_cmd in (plugin, standalone):
                 try:
-                    subprocess.check_output(docker_compose + version_cmd, stderr=subprocess.DEVNULL)
+                    subprocess.check_output(
+                        docker_compose + version_cmd, stderr=subprocess.DEVNULL
+                    )
                     # Cache result if no error is raised
                     self._docker_compose_cmd = docker_compose
                     break
@@ -1912,7 +1914,8 @@ class XRCompose:
         """
         LOGGER.info("Launching docker-compose topology...")
         subprocess.run(
-            self.docker_compose_cmd + ["-f", self.output_file, "up", "-d"], check=True
+            self.docker_compose_cmd + ["-f", self.output_file, "up", "-d"],
+            check=True,
         )
 
 
