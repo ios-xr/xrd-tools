@@ -3342,9 +3342,8 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_success_plugin(self, capsys):
         """Test the success case."""
-        result, output = self.perform_check(
-            capsys, cmd_effects="Docker Compose version v2.19.0"
-        )
+        cmd_effects = ["Docker Compose version v2.19.0", None]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert (
             textwrap.dedent(output)
             == "PASS -- docker-compose (version 2.19.0)\n"
