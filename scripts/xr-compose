@@ -926,6 +926,8 @@ class XRCompose:
 
         self.image = image
 
+        self._docker_compose_cmd: Optional[List[str]] = None
+
         self.check_input_and_output()
 
         # Load the input YAML
@@ -938,6 +940,29 @@ class XRCompose:
         self.networks: List[Network] = []
         self.services: List[Service] = []
         self.errors: List[Exception] = []
+
+    @property
+    def docker_compose_cmd(self) -> List[str]:
+        if self._docker_compose_cmd is None:
+            plugin = (["docker", "compose"], ["version"])
+            standalone = (["docker-compose"], ["--version"])
+            for docker_compose, version_cmd in (plugin, standalone):
+                try:
+                    subprocess.check_output(
+                        docker_compose + version_cmd, stderr=subprocess.DEVNULL
+                    )
+                    # Cache result if no error is raised
+                    self._docker_compose_cmd = docker_compose
+                    break
+                except (FileNotFoundError, subprocess.SubprocessError):
+                    pass
+            else:
+                raise Error(
+                    "Docker Compose not found.\n"
+                    "Launching XRd topologies with xr-compose requires docker-compose.\n"
+                    "See installation instructions at https://docs.docker.com/compose/install/.",
+                )
+        return self._docker_compose_cmd
 
     # -------------------------------------------------------------------
     # Methods related to checking input arguments
@@ -971,7 +996,7 @@ class XRCompose:
         # is not covered by the python API. Don't include the last empty line.
         try:
             docker_compose_out = subprocess.check_output(
-                ["docker-compose", "-f", self.output_file, "ps"],
+                self.docker_compose_cmd + ["-f", self.output_file, "ps"],
                 universal_newlines=True,
             )
         except subprocess.CalledProcessError:
@@ -1889,7 +1914,8 @@ class XRCompose:
         """
         LOGGER.info("Launching docker-compose topology...")
         subprocess.run(
-            ["docker-compose", "-f", self.output_file, "up", "-d"], check=True
+            self.docker_compose_cmd + ["-f", self.output_file, "up", "-d"],
+            check=True,
         )
 
 

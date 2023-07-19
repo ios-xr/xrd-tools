@@ -1364,21 +1364,27 @@ def check_supports_d_type() -> CheckFuncReturn:
 
 def check_docker_compose() -> CheckFuncReturn:
     """Check that the docker-compose version is 1.18.x or higher."""
-    cmd = "docker-compose --version"
-    try:
-        # Use a longer than default timeout as this command has been known to
-        # time out.
-        version_str = run_cmd(shlex.split(cmd), timeout=10)[0].strip()
-    except (FileNotFoundError, subprocess.SubprocessError):
+    plugin_cmd = "docker compose version"
+    standalone_cmd = "docker-compose --version"
+    for cmd in (plugin_cmd, standalone_cmd):
+        try:
+            # Use a longer than default timeout as this command has been known to
+            # time out.
+            version_str = run_cmd(shlex.split(cmd), timeout=10)[0].strip()
+            break
+        except (FileNotFoundError, subprocess.SubprocessError):
+            pass
+    else:
         return (
             CheckState.FAILED,
-            f"Docker Compose not found (checked with {cmd!r}).\n"
+            f"Docker Compose not found (checked with {plugin_cmd!r} and {standalone_cmd!r}).\n"
             f"Launching XRd topologies with xr-compose requires docker-compose.\n"
             f"See installation instructions at https://docs.docker.com/compose/install/.",
         )
 
     version_match = re.match(
-        r"docker-compose version (\d+\.\d+(?:\.\d+)?)", version_str
+        r"(?:docker-compose|Docker Compose) version v?(\d+\.\d+(?:\.\d+)?)",
+        version_str,
     )
     if not version_match:
         return (

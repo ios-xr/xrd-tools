@@ -3338,13 +3338,25 @@ class TestDockerCompose(_CheckTestBase):
 
     check_group = "xr-compose"
     check_name = "docker-compose"
-    cmds = ["docker-compose --version"]
+    cmds = ["docker compose version", "docker-compose --version"]
 
-    def test_success(self, capsys):
+    def test_success_plugin(self, capsys):
         """Test the success case."""
-        result, output = self.perform_check(
-            capsys, cmd_effects="docker-compose version 1.18.0"
+        cmd_effects = ["Docker Compose version v2.19.0", None]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
+        assert (
+            textwrap.dedent(output)
+            == "PASS -- docker-compose (version 2.19.0)\n"
         )
+        assert result is CheckState.SUCCESS
+
+    def test_success_standalone(self, capsys):
+        """Test the success case."""
+        cmd_effects = [
+            subprocess.SubprocessError,
+            "docker-compose version 1.18.0",
+        ]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert (
             textwrap.dedent(output)
             == "PASS -- docker-compose (version 1.18.0)\n"
@@ -3353,13 +3365,12 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
-        result, output = self.perform_check(
-            capsys, cmd_effects=subprocess.SubprocessError
-        )
+        cmd_effects = [subprocess.SubprocessError, subprocess.SubprocessError]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             FAIL -- docker-compose
-                    Docker Compose not found (checked with 'docker-compose --version').
+                    Docker Compose not found (checked with 'docker compose version' and 'docker-compose --version').
                     Launching XRd topologies with xr-compose requires docker-compose.
                     See installation instructions at https://docs.docker.com/compose/install/.
             """
@@ -3368,9 +3379,8 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_no_version_match(self, capsys):
         """Test failure to match the version in the output."""
-        result, output = self.perform_check(
-            capsys, cmd_effects="unexpected output"
-        )
+        cmd_effects = ["unexpected output", None]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- docker-compose
@@ -3381,9 +3391,11 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_old_version(self, capsys):
         """Test the version being too old."""
-        result, output = self.perform_check(
-            capsys, cmd_effects="docker-compose version 1.17.10"
-        )
+        cmd_effects = [
+            subprocess.SubprocessError,
+            "docker-compose version 1.17.10",
+        ]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             FAIL -- docker-compose
@@ -3395,9 +3407,8 @@ class TestDockerCompose(_CheckTestBase):
 
     def test_unexpected_error(self, capsys):
         """Test unexpected error being raised."""
-        result, output = self.perform_check(
-            capsys, cmd_effects=Exception("test exception")
-        )
+        cmd_effects = [Exception("test exception"), None]
+        result, output = self.perform_check(capsys, cmd_effects=cmd_effects)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- docker-compose
