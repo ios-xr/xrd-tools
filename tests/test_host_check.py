@@ -970,8 +970,8 @@ class TestKernelVersion(_CheckTestBase):
 
     def test_success(self, capsys):
         """Test the success case."""
-        result, output = self.perform_check(capsys, cmd_effects="4.1")
-        assert textwrap.dedent(output) == "PASS -- Kernel version (4.1)\n"
+        result, output = self.perform_check(capsys, cmd_effects="4.6")
+        assert textwrap.dedent(output) == "PASS -- Kernel version (4.6)\n"
         assert result is CheckState.SUCCESS
 
     def test_subproc_error(self, capsys):
@@ -982,7 +982,7 @@ class TestKernelVersion(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Kernel version
-                     Unable to check the kernel version with command 'uname -r' - must be at least version 4.0
+                     Unable to check the kernel version with command 'uname -r' - must be at least version 4.6
             """
         )
         assert result is CheckState.ERROR
@@ -995,18 +995,29 @@ class TestKernelVersion(_CheckTestBase):
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             ERROR -- Kernel version
-                     Unable to check the kernel version with command 'uname -r' - must be at least version 4.0
+                     Unable to check the kernel version with command 'uname -r' - must be at least version 4.6
             """
         )
         assert result is CheckState.ERROR
 
-    def test_old_version(self, capsys):
+    def test_old_major_version(self, capsys):
         """Test the version being too old."""
         result, output = self.perform_check(capsys, cmd_effects="3.9.8")
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             FAIL -- Kernel version
-                    The kernel version is 3.9, but at least version 4.0 is required.
+                    The kernel version is 3.9, but at least version 4.6 is required.
+            """
+        )
+        assert result is CheckState.FAILED
+
+    def test_old_minor_version(self, capsys):
+        """Test the version being too old."""
+        result, output = self.perform_check(capsys, cmd_effects="4.5")
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            FAIL -- Kernel version
+                    The kernel version is 4.5, but at least version 4.6 is required.
             """
         )
         assert result is CheckState.FAILED
