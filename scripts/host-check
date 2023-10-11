@@ -413,13 +413,13 @@ def check_kernel_version() -> CheckFuncReturn:
     except Exception:
         return (
             CheckState.ERROR,
-            f"Unable to check the kernel version with command {cmd!r} - must be at least version 4.0",
+            f"Unable to check the kernel version with command {cmd!r} - must be at least version 4.6",
         )
 
-    if version_tuple < (4, 0):
+    if version_tuple < (4, 6):
         return (
             CheckState.FAILED,
-            f"The kernel version is {version}, but at least version 4.0 is required.",
+            f"The kernel version is {version}, but at least version 4.6 is required.",
         )
 
     # Check for RHEL/CentOS 8.3 kernel version
