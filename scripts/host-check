@@ -45,7 +45,6 @@ import shlex
 import subprocess
 import textwrap
 from dataclasses import dataclass
-from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -1715,7 +1714,9 @@ def run_checks_specific_platform(
             "!! One or more platform checks could not be performed, see errors above !!"
         )
     elif plat_warning:
-        print("!! One or more platform checks resulted in a warning, see warnings above !!")
+        print(
+            "!! One or more platform checks resulted in a warning, see warnings above !!"
+        )
     else:
         print(f"Host environment set up correctly for {platform}")
     if extra_checks:
@@ -1795,12 +1796,14 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
     if platforms_errored:
         print(
             "!! One or more platform checks could not be performed for XR platforms:\n    "
-            + ", ".join(sorted(platforms_errored)) + " (see errors above) !!"
+            + ", ".join(sorted(platforms_errored))
+            + " (see errors above) !!"
         )
     if platforms_warned:
         print(
             "!! One or more platform checks resulted in a warning for XR platforms:\n    "
-            + ", ".join(sorted(platforms_warned)) + " (see warnings above) !!"
+            + ", ".join(sorted(platforms_warned))
+            + " (see warnings above) !!"
         )
 
     # Print the result of any extra checks
@@ -1815,10 +1818,10 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
 
     if (
         len(platforms_not_supported)
-            + len(platforms_errored)
-            + len(extras_not_supported)
-            + len(extras_errored)
-        ) > 0:
+        + len(platforms_errored)
+        + len(extras_not_supported)
+        + len(extras_errored)
+    ) > 0:
         rc = EXIT_ERROR
     elif len(platforms_warned) + len(extras_warned) > 0:
         rc = EXIT_WARNING

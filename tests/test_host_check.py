@@ -760,7 +760,6 @@ XR platforms NOT supported: xrd-control-plane, xrd-vrouter
         assert output == cli_output
         assert exit_code == EXIT_ERROR
 
-
     def test_no_plats_supported(self, capsys):
         """Test no platforms being supported when host-check is run without arguments."""
         exit_code, output = self.run_host_check(
@@ -826,7 +825,7 @@ XR platforms NOT supported: xrd-vrouter
             capsys,
             [],
             failing_checks=["Hugepages"],
-            warning_checks=["Kernel version"]
+            warning_checks=["Kernel version"],
         )
         cli_output = f"""\
 ==============================
@@ -933,8 +932,8 @@ Extra checks failed: xr-compose
         assert output == cli_output
         assert exit_code == EXIT_ERROR
 
-    def test_extra_check_warning(self, capsys):
-        """Test a specified extra check warning."""
+    def test_plat_specified_extra_check_warning(self, capsys):
+        """Test a specified extra check warning with the platform specified."""
         exit_code, output = self.run_host_check(
             capsys,
             ["-p", "xrd-control-plane", "-e", "docker", "xr-compose"],
