@@ -66,7 +66,6 @@ def perform_check(
     files: Optional[Union[Tuple[str, Any], List[Tuple[str, Any]]]] = None,
     deps: Optional[List[str]] = None,
     failed_deps: Optional[List[str]] = None,
-    warned_deps: Optional[List[str]] = None,
 ) -> Tuple[CheckState, str]:
     """
     Perform a single host check and return whether it succeeded and the output.
@@ -89,8 +88,6 @@ def perform_check(
         Any dependencies to check that the host check is declared to have.
     :param failed_deps:
         Any dependencies to treat as failed.
-    :param warned_deps:
-        Any dependencies to treat as warned.
     :return:
         The result of the check and the output from the check.
     """
@@ -102,8 +99,6 @@ def perform_check(
         for d in deps:
             if failed_deps and d in failed_deps:
                 check_state = host_check.CheckState.FAILED
-            elif warned_deps and d in warned_deps:
-                check_state = host_check.CheckState.WARNING
             else:
                 check_state = host_check.CheckState.SUCCESS
             checks.append(

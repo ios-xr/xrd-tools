@@ -1686,9 +1686,9 @@ def run_checks_specific_platform(
     :param extra_checks:
         A list of the extra checks.
     :return:
-        SUCCESS if platform is successful
-        ERROR if there are any failures or errors (including extra checks)
-        WARNING if there are warnings but no failures or errors (including
+        EXIT_SUCCESS if all checks were successful
+        EXIT_ERROR if there are any failures or errors (including extra checks)
+        EXIT_WARNING if there are warnings but no failures or errors (including
             extra checks)
     """
 
@@ -1743,9 +1743,9 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
     Run checks for all platforms and report which platforms are supported.
 
     :return:
-        SUCCESS if all XR platforms are supported
-        ERROR if there are any failures or errors (including extra tests)
-        WARNING if there are warnings but no failures or errors (including
+        EXIT_SUCCESS if all checks were successful
+        EXIT_ERROR if there are any failures or errors (including extra tests)
+        EXIT_WARNING if there are warnings but no failures or errors (including
             extra tests)
     """
     platforms_supported: Set[str] = set()
