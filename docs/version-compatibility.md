@@ -5,9 +5,9 @@ In some cases extra arguments will be required to continue using older XR releas
 
 ## v1.1
 
-Supports all XR versions between 7.7.1 and 7.9.1 (all released versions of XRd).
+Supports all XR versions between 7.7.1 and 7.10.1.
 
-See the v1.1 section below for compatibility with XR 7.7.1.
+Versions with compatibility considerations are documented below.
 
 
 ### XR 7.8.1

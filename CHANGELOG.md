@@ -3,7 +3,7 @@
 
 ## v1 (active)
 
-The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.9.1.
+The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.10.1.
 
 ### v1.1.13 (2023-10-11)
 
