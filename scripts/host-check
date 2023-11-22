@@ -1604,16 +1604,24 @@ def perform_checks(checks: List[Check]) -> Mapping[str, CheckState]:
     return results
 
 
+class ExtraResults(NamedTuple):
+    """The results of any extra checks."""
+
+    supported: Set[str]
+    not_supported: Set[str]
+    errored: Set[str]
+    warned: Set[str]
+
+
 def run_if_extra_checks(
     extra_checks: Optional[List[str]] = None,
-) -> Tuple[Set[str], Set[str], Set[str], Set[str]]:
+) -> ExtraResults:
     """
-    Run the specified extra checks, printing the results and returning the
-    checks that succeeded, failed and errored.
+    Run the specified extra checks, printing the results.
     :param extra_checks:
         List of extra checks to perform.
     :returns:
-        Tuple of the checks that: succeeded, failed and errored and warned.
+        NamedTuple of sets of checks that succeeded, failed, errored and warned.
     """
     extras_supported = set()
     extras_not_supported = set()
@@ -1636,7 +1644,7 @@ def run_if_extra_checks(
             else:
                 extras_supported.add(extra_check)
 
-    return (
+    return ExtraResults(
         extras_supported,
         extras_not_supported,
         extras_errored,
@@ -1644,12 +1652,7 @@ def run_if_extra_checks(
     )
 
 
-def print_extra_checks_summary(
-    extras_supported: Set[str],
-    extras_not_supported: Set[str],
-    extras_errored: Set[str],
-    extras_warned: Set[str],
-) -> None:
+def print_extra_checks_summary(extra_results: ExtraResults) -> None:
     """
     Print a summary of the extra checks that passed and failed.
     :param extras_supported:
@@ -1662,16 +1665,24 @@ def print_extra_checks_summary(
         The checks that resulted in a warning.
     """
     print(f"{DASHED_LINE}")
-    if extras_supported:
-        print("Extra checks passed: " + ", ".join(sorted(extras_supported)))
-    if extras_not_supported:
+    if extra_results.supported:
         print(
-            "Extra checks failed: " + ", ".join(sorted(extras_not_supported))
+            "Extra checks passed: "
+            + ", ".join(sorted(extra_results.supported))
         )
-    if extras_errored:
-        print("Extra checks errored: " + ", ".join(sorted(extras_errored)))
-    if extras_warned:
-        print("Extra checks warned: " + ", ".join(sorted(extras_warned)))
+    if extra_results.not_supported:
+        print(
+            "Extra checks failed: "
+            + ", ".join(sorted(extra_results.not_supported))
+        )
+    if extra_results.errored:
+        print(
+            "Extra checks errored: " + ", ".join(sorted(extra_results.errored))
+        )
+    if extra_results.warned:
+        print(
+            "Extra checks warned: " + ", ".join(sorted(extra_results.warned))
+        )
 
 
 def run_checks_specific_platform(
@@ -1698,12 +1709,7 @@ def run_checks_specific_platform(
     plat_error = any(c is CheckState.ERROR for c in plat_results.values())
     plat_warning = any(c is CheckState.WARNING for c in plat_results.values())
 
-    (
-        extras_supported,
-        extras_not_supported,
-        extras_errored,
-        extras_warned,
-    ) = run_if_extra_checks(extra_checks)
+    extra_results = run_if_extra_checks(extra_checks)
 
     # Print a summary of what is and is not supported
     print(f"\n{DOUBLE_DASHED_LINE}")
@@ -1720,17 +1726,17 @@ def run_checks_specific_platform(
     else:
         print(f"Host environment set up correctly for {platform}")
     if extra_checks:
-        print_extra_checks_summary(
-            extras_supported,
-            extras_not_supported,
-            extras_errored,
-            extras_warned,
-        )
+        print_extra_checks_summary(extra_results)
     print(f"{DOUBLE_DASHED_LINE}")
 
-    if plat_failure or plat_error or extras_not_supported or extras_errored:
+    if (
+        plat_failure
+        or plat_error
+        or extra_results.not_supported
+        or extra_results.errored
+    ):
         rc = EXIT_ERROR
-    elif plat_warning or extras_warned:
+    elif plat_warning or extra_results.warned:
         rc = EXIT_WARNING
     else:
         rc = EXIT_SUCCESS
@@ -1775,12 +1781,7 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         else:
             platforms_supported.add(platform)
 
-    (
-        extras_supported,
-        extras_not_supported,
-        extras_errored,
-        extras_warned,
-    ) = run_if_extra_checks(extra_checks)
+    extra_results = run_if_extra_checks(extra_checks)
 
     # Print a summary of what is and is not supported
     print(f"\n{DOUBLE_DASHED_LINE}")
@@ -1808,22 +1809,17 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
 
     # Print the result of any extra checks
     if extra_checks:
-        print_extra_checks_summary(
-            extras_supported,
-            extras_not_supported,
-            extras_errored,
-            extras_warned,
-        )
+        print_extra_checks_summary(extra_results)
     print(f"{DOUBLE_DASHED_LINE}")
 
     if (
         len(platforms_not_supported)
         + len(platforms_errored)
-        + len(extras_not_supported)
-        + len(extras_errored)
+        + len(extra_results.not_supported)
+        + len(extra_results.errored)
     ) > 0:
         rc = EXIT_ERROR
-    elif len(platforms_warned) + len(extras_warned) > 0:
+    elif len(platforms_warned) + len(extra_results.warned) > 0:
         rc = EXIT_WARNING
     else:
         rc = EXIT_SUCCESS
