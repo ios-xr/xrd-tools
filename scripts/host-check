@@ -1796,15 +1796,17 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         )
     if platforms_errored:
         print(
-            "!! One or more platform checks could not be performed for XR platforms:\n    "
-            + ", ".join(sorted(platforms_errored))
-            + " (see errors above) !!"
+            "!! One or more platform checks could not be performed for XR platforms:   !!"
+            + "\n      "
+            + ",\n      ".join(sorted(platforms_errored))
+            + "\n   See errors above."
         )
     if platforms_warned:
         print(
-            "!! One or more platform checks resulted in a warning for XR platforms:\n    "
-            + ", ".join(sorted(platforms_warned))
-            + " (see warnings above) !!"
+            "!! One or more platform checks resulted in a warning for XR platforms:    !!"
+            + "\n      "
+            + ",\n      ".join(sorted(platforms_warned))
+            + "\n   See warnings above."
         )
 
     # Print the result of any extra checks
