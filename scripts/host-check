@@ -70,8 +70,7 @@ from typing import (
 
 # Exit codes
 EXIT_SUCCESS = 0
-EXIT_ERROR = 10
-EXIT_WARNING = 11
+EXIT_ERROR = 1
 
 
 INOTIFY_RECOMMENDED = 64000
@@ -1698,8 +1697,7 @@ def run_checks_specific_platform(
         A list of the extra checks.
     :return:
         EXIT_SUCCESS if all checks were successful
-        EXIT_ERROR if there are any failures or errors (including extra checks)
-        EXIT_WARNING if there are warnings but no failures or errors (including
+        EXIT_ERROR if there are any failures, warnings or errors (including
             extra checks)
     """
 
@@ -1734,10 +1732,10 @@ def run_checks_specific_platform(
         or plat_error
         or extra_results.not_supported
         or extra_results.errored
+        or plat_warning
+        or extra_results.warned
     ):
         rc = EXIT_ERROR
-    elif plat_warning or extra_results.warned:
-        rc = EXIT_WARNING
     else:
         rc = EXIT_SUCCESS
 
@@ -1750,8 +1748,7 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
 
     :return:
         EXIT_SUCCESS if all checks were successful
-        EXIT_ERROR if there are any failures or errors (including extra tests)
-        EXIT_WARNING if there are warnings but no failures or errors (including
+        EXIT_ERROR if there are any failures, warnings or errors (including
             extra tests)
     """
     platforms_supported: Set[str] = set()
@@ -1819,10 +1816,10 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         + len(platforms_errored)
         + len(extra_results.not_supported)
         + len(extra_results.errored)
+        + len(platforms_warned)
+        + len(extra_results.warned)
     ) > 0:
         rc = EXIT_ERROR
-    elif len(platforms_warned) + len(extra_results.warned) > 0:
-        rc = EXIT_WARNING
     else:
         rc = EXIT_SUCCESS
 

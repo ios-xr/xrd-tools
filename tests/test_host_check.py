@@ -34,7 +34,6 @@ host_check = utils.import_path(HOST_CHECK_SCRIPT)
 CheckState = host_check.CheckState
 Check = host_check.Check
 EXIT_SUCCESS = host_check.EXIT_SUCCESS
-EXIT_WARNING = host_check.EXIT_WARNING
 EXIT_ERROR = host_check.EXIT_ERROR
 
 # ------------------------------------------------------------------------------
@@ -565,7 +564,7 @@ Extra checks warned: docker
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == EXIT_WARNING
+        assert exit_code == EXIT_ERROR
 
     def test_plat_specified_check_failing(self, capsys):
         """Test a platform check failing when host-check is run with arguments."""
@@ -625,7 +624,7 @@ Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == EXIT_WARNING
+        assert exit_code == EXIT_ERROR
 
     def test_plat_specified_check_warning_failing(self, capsys):
         """
@@ -720,7 +719,7 @@ Checks: {VROUTER_CHECKS_STR}
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == EXIT_WARNING
+        assert exit_code == EXIT_ERROR
 
     def test_base_check_warning_failing(self, capsys):
         """
@@ -965,7 +964,7 @@ Extra checks warned: xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == EXIT_WARNING
+        assert exit_code == EXIT_ERROR
 
     def test_extra_check_erroring_plat(self, capsys):
         """Test a specified extra check erroring."""
