@@ -677,7 +677,7 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-!! One or more platform checks could not be performed for XR platforms:   !!
+!! One or more platform checks could not be performed for XR platforms: !!
       xrd-control-plane,
       xrd-vrouter
    See errors above.
@@ -712,7 +712,7 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-!! One or more platform checks resulted in a warning for XR platforms:    !!
+!! One or more platform checks resulted in a warning for XR platforms: !!
       xrd-control-plane,
       xrd-vrouter
    See warnings above.
@@ -751,7 +751,7 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-XR platforms NOT supported: xrd-control-plane, xrd-vrouter
+!! XR platforms NOT supported: xrd-control-plane, xrd-vrouter !!
 ============================================================================
 """
         print(output)
@@ -781,7 +781,7 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-XR platforms NOT supported: xrd-control-plane, xrd-vrouter
+!! XR platforms NOT supported: xrd-control-plane, xrd-vrouter !!
 ============================================================================
 """
         assert output == cli_output
@@ -811,7 +811,7 @@ Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
 XR platforms supported: xrd-control-plane
-XR platforms NOT supported: xrd-vrouter
+!! XR platforms NOT supported: xrd-vrouter !!
 ============================================================================
 """
         assert output == cli_output
@@ -843,8 +843,8 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-XR platforms NOT supported: xrd-vrouter
-!! One or more platform checks resulted in a warning for XR platforms:    !!
+!! XR platforms NOT supported: xrd-vrouter !!
+!! One or more platform checks resulted in a warning for XR platforms: !!
       xrd-control-plane
    See warnings above.
 ============================================================================

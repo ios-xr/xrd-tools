@@ -1654,14 +1654,8 @@ def run_if_extra_checks(
 def print_extra_checks_summary(extra_results: ExtraResults) -> None:
     """
     Print a summary of the extra checks that passed and failed.
-    :param extras_supported:
-        The checks that were successful.
-    :param extras_not_supported:
-        The checks that were not successful.
-    :param extras_errored:
-        The checks that errored/failed to run.
-    :param extras_warned:
-        The checks that resulted in a warning.
+    :param extras_results:
+        The results of the extra checks.
     """
     print(f"{DASHED_LINE}")
     if extra_results.supported:
@@ -1788,19 +1782,20 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         )
     if platforms_not_supported:
         print(
-            "XR platforms NOT supported: "
+            "!! XR platforms NOT supported: "
             + ", ".join(sorted(platforms_not_supported))
+            + " !!"
         )
     if platforms_errored:
         print(
-            "!! One or more platform checks could not be performed for XR platforms:   !!"
+            "!! One or more platform checks could not be performed for XR platforms: !!"
             + "\n      "
             + ",\n      ".join(sorted(platforms_errored))
             + "\n   See errors above."
         )
     if platforms_warned:
         print(
-            "!! One or more platform checks resulted in a warning for XR platforms:    !!"
+            "!! One or more platform checks resulted in a warning for XR platforms: !!"
             + "\n      "
             + ",\n      ".join(sorted(platforms_warned))
             + "\n   See warnings above."
@@ -1812,13 +1807,13 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
     print(f"{DOUBLE_DASHED_LINE}")
 
     if (
-        len(platforms_not_supported)
-        + len(platforms_errored)
-        + len(extra_results.not_supported)
-        + len(extra_results.errored)
-        + len(platforms_warned)
-        + len(extra_results.warned)
-    ) > 0:
+        platforms_not_supported
+        or platforms_errored
+        or extra_results.not_supported
+        or extra_results.errored
+        or platforms_warned
+        or extra_results.warned
+    ):
         rc = EXIT_ERROR
     else:
         rc = EXIT_SUCCESS
