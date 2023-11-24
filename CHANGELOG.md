@@ -7,7 +7,7 @@ The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.9.1.
 
 ### v1.1.14 (2023-11-15)
 
-- Modify the return code of 'host-check' so that 0 is returned if all checks pass, 1 otherwise (including if warnings).
+- `host-check` now summarizes failures and warnings separately". When testing both XR platforms, a failure for either is now treated as a failure overall.
 
 ### v1.1.13 (2023-10-11)
 
