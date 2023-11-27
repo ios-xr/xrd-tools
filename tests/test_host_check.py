@@ -33,6 +33,8 @@ HOST_CHECK_SCRIPT = REPO_ROOT_DIR / "scripts" / "host-check"
 host_check = utils.import_path(HOST_CHECK_SCRIPT)
 CheckState = host_check.CheckState
 Check = host_check.Check
+EXIT_SUCCESS = host_check.EXIT_SUCCESS
+EXIT_ERROR = host_check.EXIT_ERROR
 
 # ------------------------------------------------------------------------------
 # Helpers
@@ -194,6 +196,7 @@ class TestFlow:
         argv: List[str],
         failing_checks: List[str] = [],
         erroring_checks: List[str] = [],
+        warning_checks: List[str] = [],
     ) -> Tuple[int, str]:
         def perform_checks_mock(
             checks: List[Check],
@@ -206,6 +209,8 @@ class TestFlow:
                     results[check] = CheckState.FAILED
                 elif check in erroring_checks:
                     results[check] = CheckState.ERROR
+                elif check in warning_checks:
+                    results[check] = CheckState.WARNING
                 else:
                     results[check] = CheckState.SUCCESS
             return results
@@ -242,7 +247,7 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_plat_xrd(self, capsys):
         """Test running host-check with the xrd CP platform argument."""
@@ -260,7 +265,7 @@ Host environment set up correctly for xrd-control-plane
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_plat_xrd_vrouter(self, capsys):
         """Test running host-check with the xrd-vrouter platform argument."""
@@ -276,7 +281,7 @@ Host environment set up correctly for xrd-vrouter
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_extra_check_docker_plat(self, capsys):
         """Test running host-check with the docker extra check."""
@@ -304,7 +309,7 @@ Extra checks passed: docker
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_extra_check_xr_compose_plat(self, capsys):
         """Test running host-check with the xr-compose extra check."""
@@ -332,7 +337,7 @@ Extra checks passed: xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_all_extra_checks_plat(self, capsys):
         """Test running host-check with all extra checks."""
@@ -364,7 +369,7 @@ Extra checks passed: docker, xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_extra_check_docker(self, capsys):
         """Test running host-check with the docker extra check."""
@@ -401,7 +406,7 @@ Extra checks passed: docker
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_extra_check_xr_compose(self, capsys):
         """Test running host-check with the xr-compose extra check."""
@@ -438,7 +443,7 @@ Extra checks passed: xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_all_extra_checks(self, capsys):
         """Test running host-check with all extra checks."""
@@ -481,7 +486,7 @@ Extra checks passed: docker, xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_SUCCESS
 
     def test_extra_check_erroring(self, capsys):
         """Test running host-check with the docker extra check erroring."""
@@ -520,7 +525,46 @@ Extra checks errored: docker
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_ERROR
+
+    def test_extra_check_warning(self, capsys):
+        """Test running host-check with the docker extra check warning."""
+        exit_code, output = self.run_host_check(
+            capsys, ["-e", "docker"], warning_checks=["Docker daemon"]
+        )
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: {CONTROL_PLANE_CHECKS_STR}
+
+xrd-vrouter checks
+-----------------------
+Checks: {VROUTER_CHECKS_STR}
+
+==============================
+Extra checks
+==============================
+
+docker checks
+-----------------------
+Checks: Docker client, Docker daemon, Docker supports d_type
+
+============================================================================
+XR platforms supported: xrd-control-plane, xrd-vrouter
+----------------------------------------------------------------------------
+Extra checks warned: docker
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
 
     def test_plat_specified_check_failing(self, capsys):
         """Test a platform check failing when host-check is run with arguments."""
@@ -540,7 +584,7 @@ Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 1
+        assert exit_code == EXIT_ERROR
 
     def test_plat_specified_check_erroring(self, capsys):
         """Test a platform check erroring when host-check is run with arguments."""
@@ -560,7 +604,53 @@ Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 1
+        assert exit_code == EXIT_ERROR
+
+    def test_plat_specified_check_warning(self, capsys):
+        """Test a platform check warning when host-check is run with arguments."""
+        exit_code, output = self.run_host_check(
+            capsys,
+            ["-p", "xrd-control-plane"],
+            warning_checks=["Kernel version"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks - xrd-control-plane
+==============================
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
+
+============================================================================
+!! One or more platform checks resulted in a warning, see warnings above !!
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
+
+    def test_plat_specified_check_warning_failing(self, capsys):
+        """
+        Test a platform check warning and failing when host-check is run with
+        arguments.
+
+        """
+        exit_code, output = self.run_host_check(
+            capsys,
+            ["-p", "xrd-control-plane"],
+            failing_checks=["CPU cores"],
+            warning_checks=["Kernel version"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks - xrd-control-plane
+==============================
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
+
+============================================================================
+!! Host NOT set up correctly for xrd-control-plane !!
+============================================================================
+"""
+        print(output)
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
 
     def test_base_check_erroring(self, capsys):
         """Test a base check erroring when host-check is run without arguments."""
@@ -587,11 +677,86 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-!! One or more platform checks could not be performed, see errors above !!
+!! One or more platform checks could not be performed for XR platforms: !!
+      xrd-control-plane,
+      xrd-vrouter
+   See errors above.
+============================================================================
+"""
+        print(output)
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
+
+    def test_base_check_warning(self, capsys):
+        """Test a base check warning when host-check is run without arguments."""
+        exit_code, output = self.run_host_check(
+            capsys,
+            [],
+            warning_checks=["Kernel version"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: {CONTROL_PLANE_CHECKS_STR}
+
+xrd-vrouter checks
+-----------------------
+Checks: {VROUTER_CHECKS_STR}
+
+============================================================================
+!! One or more platform checks resulted in a warning for XR platforms: !!
+      xrd-control-plane,
+      xrd-vrouter
+   See warnings above.
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 1
+        assert exit_code == EXIT_ERROR
+
+    def test_base_check_warning_failing(self, capsys):
+        """
+        Test a base check warning and failing when host-check is run without
+        arguments.
+
+        """
+        exit_code, output = self.run_host_check(
+            capsys,
+            [],
+            failing_checks=["CPU cores"],
+            warning_checks=["Kernel version"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: {CONTROL_PLANE_CHECKS_STR}
+
+xrd-vrouter checks
+-----------------------
+Checks: {VROUTER_CHECKS_STR}
+
+============================================================================
+!! XR platforms NOT supported: xrd-control-plane, xrd-vrouter !!
+============================================================================
+"""
+        print(output)
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
 
     def test_no_plats_supported(self, capsys):
         """Test no platforms being supported when host-check is run without arguments."""
@@ -616,11 +781,11 @@ xrd-vrouter checks
 Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
-XR platforms NOT supported: xrd-control-plane, xrd-vrouter
+!! XR platforms NOT supported: xrd-control-plane, xrd-vrouter !!
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 1
+        assert exit_code == EXIT_ERROR
 
     def test_one_plat_supported(self, capsys):
         """Test only one platform being supported."""
@@ -646,11 +811,46 @@ Checks: {VROUTER_CHECKS_STR}
 
 ============================================================================
 XR platforms supported: xrd-control-plane
-XR platforms NOT supported: xrd-vrouter
+!! XR platforms NOT supported: xrd-vrouter !!
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_ERROR
+
+    def test_one_plat_failing_other_warning(self, capsys):
+        """Test only one platform failing and the other warning."""
+        exit_code, output = self.run_host_check(
+            capsys,
+            [],
+            failing_checks=["Hugepages"],
+            warning_checks=["Kernel version"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: {CONTROL_PLANE_CHECKS_STR}
+
+xrd-vrouter checks
+-----------------------
+Checks: {VROUTER_CHECKS_STR}
+
+============================================================================
+!! XR platforms NOT supported: xrd-vrouter !!
+!! One or more platform checks resulted in a warning for XR platforms: !!
+      xrd-control-plane
+   See warnings above.
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
 
     def test_extra_check_not_supported(self, capsys):
         """Test an extra check not being supported when host-check is run without arguments."""
@@ -694,7 +894,7 @@ Extra checks failed: xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 0
+        assert exit_code == EXIT_ERROR
 
     def test_extra_check_failing(self, capsys):
         """Test a specified extra check failing."""
@@ -729,7 +929,42 @@ Extra checks failed: xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 1
+        assert exit_code == EXIT_ERROR
+
+    def test_plat_specified_extra_check_warning(self, capsys):
+        """Test a specified extra check warning with the platform specified."""
+        exit_code, output = self.run_host_check(
+            capsys,
+            ["-p", "xrd-control-plane", "-e", "docker", "xr-compose"],
+            warning_checks=["PyYAML"],
+        )
+        cli_output = f"""\
+==============================
+Platform checks - xrd-control-plane
+==============================
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
+
+==============================
+Extra checks
+==============================
+
+docker checks
+-----------------------
+Checks: Docker client, Docker daemon, Docker supports d_type
+
+xr-compose checks
+-----------------------
+Checks: docker-compose, PyYAML, Bridge iptables
+
+============================================================================
+Host environment set up correctly for xrd-control-plane
+----------------------------------------------------------------------------
+Extra checks passed: docker
+Extra checks warned: xr-compose
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_ERROR
 
     def test_extra_check_erroring_plat(self, capsys):
         """Test a specified extra check erroring."""
@@ -764,7 +999,7 @@ Extra checks errored: xr-compose
 ============================================================================
 """
         assert output == cli_output
-        assert exit_code == 1
+        assert exit_code == EXIT_ERROR
 
     def test_unrecognized_arg(self, capsys):
         """Test running host-check with an unrecognized argument."""
