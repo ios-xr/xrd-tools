@@ -1107,7 +1107,7 @@ def check_iommu() -> CheckFuncReturn:
     return (CheckState.SUCCESS, "IOMMU enabled for vfio-pci.")
 
 
-def check_pci() -> CheckFuncReturn:
+def check_pci_devices() -> CheckFuncReturn:
     """Check PCI devices are available."""
 
     # Check if IOMMU is enabled on the host by getting the IOMMU devices
@@ -1519,7 +1519,7 @@ VROUTER_CHECKS = [
     Check("Hugepages", check_hugepages, []),
     Check("Interface kernel driver", check_interface_kernel_driver, []),
     Check("IOMMU", check_iommu, ["Interface kernel driver"]),
-    Check("PCI", check_pci, ["IOMMU"]),
+    Check("PCI devices", check_pci_devices, ["IOMMU"]),
     Check("Shared memory pages max size", check_shmem_pages_max_size, []),
     Check("Real-time Group Scheduling", check_realtime_group_sched, []),
 ]

@@ -3167,11 +3167,11 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         assert result is CheckState.NEUTRAL
 
 
-class TestPCI(_CheckTestBase):
-    """Tests for the IOMMU check."""
+class TestPCIDevices(_CheckTestBase):
+    """Tests for the PCI devices check."""
 
     check_group = "xrd-vrouter"
-    check_name = "PCI"
+    check_name = "PCI devices"
     deps = ["IOMMU"]
     cmds = ["lshw -businfo -c network"]
     files = []
@@ -3204,7 +3204,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            PASS -- PCI
+            PASS -- PCI devices
                     The following PCI device(s) are available:
                     device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0)
             """
@@ -3231,7 +3231,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            PASS -- PCI
+            PASS -- PCI devices
                     The following PCI device(s) are available:
                     device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
                     device4 (0000:00:1f.2)
@@ -3256,7 +3256,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            WARN -- PCI
+            WARN -- PCI devices
                     IOMMU enabled for vfio-pci, but no network PCI devices found.
             """
         )
@@ -3280,7 +3280,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            ERROR -- PCI
+            ERROR -- PCI devices
                      The cmd 'lshw -businfo -c network' failed - unable to
                      determine the network devices on the host.
             """
@@ -3311,7 +3311,7 @@ Bus info          Device      Class      Description
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            WARN -- PCI (no PCI network devices found)
+            WARN -- PCI devices (no PCI network devices found)
             """
         )
         assert result is CheckState.WARNING
@@ -3321,7 +3321,7 @@ Bus info          Device      Class      Description
         result, output = self.perform_check(capsys, failed_deps=self.deps)
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-            SKIP -- PCI
+            SKIP -- PCI devices
                     Skipped due to failed checks: IOMMU
             """
         )
