@@ -1104,6 +1104,21 @@ def check_iommu() -> CheckFuncReturn:
             f"Unable to check if IOMMU is enabled by listing {iommu_dev_filepath}.\n"
             + recommendation,
         )
+    return (CheckState.SUCCESS, "IOMMU enabled for vfio-pci.")
+
+
+def check_pci() -> CheckFuncReturn:
+    """Check PCI devices are available."""
+
+    # Check if IOMMU is enabled on the host by getting the IOMMU devices
+    iommu_dev_filepath = "/sys/class/iommu/*/devices/*"
+    try:
+        iommu_devices = [
+            os.path.basename(p) for p in glob.glob(iommu_dev_filepath)
+        ]
+    except Exception:
+        pass
+
     # List the network PCI devices
     try:
         cmd = "lshw -businfo -c network"
@@ -1112,8 +1127,6 @@ def check_iommu() -> CheckFuncReturn:
             r"pci@([\da-f]{4}:[\da-f]{2}:[\da-f]{2}\.[\da-f])\s+(\S+)", output
         )
         if not matches:
-            # This should always be a warning - we need PCI devices whether
-            # we're using igb_uio or vfio-pci.
             return CheckState.WARNING, "no PCI network devices found"
         network_devices = set()
         net_devices_dict = {}
@@ -1126,22 +1139,24 @@ def check_iommu() -> CheckFuncReturn:
         return (
             CheckState.ERROR,
             f"The cmd {cmd!r} failed - unable to\n"
-            "determine the network devices on the host. IOMMU is enabled.",
+            "determine the network devices on the host.",
         )
-    net_iommu_devices = network_devices & set(iommu_devices)
-    if not net_iommu_devices:
-        return (
-            warning_state,
-            "IOMMU enabled for vfio-pci, but no network PCI devices found.",
-        )
-    net_iommu_devs_list = []
-    for device in sorted(net_iommu_devices):
-        net_iommu_devs_list.append(
-            net_devices_dict[device] + " (" + device + ")"
-        )
+
+    # If in IOMMU mode then check if the network devices are in the IOMMU group
+    if iommu_devices:
+        network_devices &= set(iommu_devices)
+        if not network_devices:
+            return (
+                CheckState.WARNING,
+                "IOMMU enabled for vfio-pci, but no network PCI devices found.",
+            )
+
+    net_devs_list = []
+    for device in sorted(network_devices):
+        net_devs_list.append(net_devices_dict[device] + " (" + device + ")")
     dev_output = ""
-    for count, dev in enumerate(net_iommu_devs_list, start=1):
-        if count == len(net_iommu_devs_list):
+    for count, dev in enumerate(net_devs_list, start=1):
+        if count == len(net_devs_list):
             dev_output = dev_output + f"{dev}"
         elif count % 3 != 0:
             dev_output = dev_output + f"{dev}, "
@@ -1149,8 +1164,7 @@ def check_iommu() -> CheckFuncReturn:
             dev_output = dev_output + f"{dev},\n"
     return (
         CheckState.SUCCESS,
-        "IOMMU enabled for vfio-pci with the following PCI device(s):\n"
-        + dev_output,
+        "The following PCI device(s) are available:\n" + dev_output,
     )
 
 
@@ -1505,6 +1519,7 @@ VROUTER_CHECKS = [
     Check("Hugepages", check_hugepages, []),
     Check("Interface kernel driver", check_interface_kernel_driver, []),
     Check("IOMMU", check_iommu, ["Interface kernel driver"]),
+    Check("PCI", check_pci, ["IOMMU"]),
     Check("Shared memory pages max size", check_shmem_pages_max_size, []),
     Check("Real-time Group Scheduling", check_realtime_group_sched, []),
 ]

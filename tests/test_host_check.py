@@ -2953,7 +2953,6 @@ class TestIOMMU(_CheckTestBase):
         "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",
         "lsmod | grep -q '^igb_uio '",
         "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",
-        "lshw -businfo -c network",
     ]
     files = ["/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"]
 
@@ -2992,106 +2991,10 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            PASS -- IOMMU
-                    IOMMU enabled for vfio-pci with the following PCI device(s):
-                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
-                    device4 (0000:00:1f.2)
+            PASS -- IOMMU (IOMMU enabled for vfio-pci.)
             """
         )
         assert result is CheckState.SUCCESS
-
-    def test_no_iommu_devices(self, capsys):
-        """Test the case where no devices are found."""
-        lshw_output = """\
-Bus info          Device      Class      Description
-====================================================
-pci@0000:00:02.0  enp0s2      network    82540EM Gigabit Ethernet Controller
-pci@0000:00:1f.2  docker0     network    Ethernet interface
-        """
-        iommu_devices = ["0000:00:00.0", "0000:00:01.0"]
-        with mock.patch("glob.glob", return_value=iommu_devices):
-            result, output = self.perform_check(
-                capsys,
-                cmd_effects=[
-                    "",
-                    None,
-                    subprocess.SubprocessError,
-                    subprocess.SubprocessError,
-                    lshw_output,
-                ],
-                read_effects="N",
-            )
-        assert textwrap.dedent(output) == textwrap.dedent(
-            f"""\
-            WARN -- IOMMU
-                    IOMMU enabled for vfio-pci, but no network PCI devices found.
-            """
-        )
-        assert result is CheckState.WARNING
-
-    def test_lshw_error(self, capsys):
-        """Test the case where an error is hit when searching for network devices."""
-        iommu_devices = [
-            "0000:00:00.0",
-            "0000:00:01.0",
-            "0000:00:02.0",
-            "0000:00:1f.0",
-            "0000:00:1f.2",
-            "0000:00:1f.3",
-        ]
-        with mock.patch("glob.glob", return_value=iommu_devices):
-            result, output = self.perform_check(
-                capsys,
-                cmd_effects=[
-                    "",
-                    None,
-                    subprocess.SubprocessError,
-                    subprocess.SubprocessError,
-                    subprocess.SubprocessError,
-                ],
-                read_effects="N",
-            )
-        assert textwrap.dedent(output) == textwrap.dedent(
-            f"""\
-            ERROR -- IOMMU
-                     The cmd 'lshw -businfo -c network' failed - unable to
-                     determine the network devices on the host. IOMMU is enabled.
-            """
-        )
-        assert result is CheckState.ERROR
-
-    def test_no_net_devices(self, capsys):
-        """Test the case where no network devices are found."""
-        lshw_output = """\
-Bus info          Device      Class      Description
-====================================================
-        """
-        iommu_devices = [
-            "0000:00:00.0",
-            "0000:00:01.0",
-            "0000:00:02.0",
-            "0000:00:1f.0",
-            "0000:00:1f.2",
-            "0000:00:1f.3",
-        ]
-        with mock.patch("glob.glob", return_value=iommu_devices):
-            result, output = self.perform_check(
-                capsys,
-                cmd_effects=[
-                    "",
-                    None,
-                    subprocess.SubprocessError,
-                    subprocess.SubprocessError,
-                    lshw_output,
-                ],
-                read_effects="N",
-            )
-        assert textwrap.dedent(output) == textwrap.dedent(
-            f"""\
-            WARN -- IOMMU (no PCI network devices found)
-            """
-        )
-        assert result is CheckState.WARNING
 
     def test_iommu_directory_check_error(self, capsys):
         """Test the case where the IOMMU check throws an error."""
@@ -3195,10 +3098,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            PASS -- IOMMU
-                    IOMMU enabled for vfio-pci with the following PCI device(s):
-                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
-                    device4 (0000:00:1f.2)
+            PASS -- IOMMU (IOMMU enabled for vfio-pci.)
             """
         )
         assert result is CheckState.SUCCESS
@@ -3265,6 +3165,167 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             """
         )
         assert result is CheckState.NEUTRAL
+
+
+class TestPCI(_CheckTestBase):
+    """Tests for the IOMMU check."""
+
+    check_group = "xrd-vrouter"
+    check_name = "PCI"
+    deps = ["IOMMU"]
+    cmds = ["lshw -businfo -c network"]
+    files = []
+
+    def test_success_vfio_iommu(self, capsys):
+        """Test the success case for vfio with IOMMU enabled."""
+        lshw_output = """\
+Bus info          Device      Class      Description
+====================================================
+pci@0000:00:00.0  device1     network    82540EM Gigabit Ethernet Controller
+pci@0000:00:1f.2  device4     network    Ethernet interface
+pci@0000:00:02.0  device3     network    82540EM Gigabit Ethernet Controller
+pci@0000:00:01.0  device2     network    Ethernet interface
+                  docker0     network    Ethernet interface
+
+
+        """
+        iommu_devices = [
+            "0000:00:00.0",
+            "0000:00:01.0",
+            "0000:00:02.0",
+            "0000:00:1f.0",
+            "0000:00:1f.3",
+        ]
+        with mock.patch("glob.glob", return_value=iommu_devices):
+            result, output = self.perform_check(
+                capsys,
+                cmd_effects=[lshw_output],
+                read_effects="N",
+            )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            PASS -- PCI
+                    The following PCI device(s) are available:
+                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0)
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_success_igb_uio(self, capsys):
+        """Test the success case for igb_uio enabled."""
+        lshw_output = """\
+Bus info          Device      Class      Description
+====================================================
+pci@0000:00:00.0  device1     network    82540EM Gigabit Ethernet Controller
+pci@0000:00:1f.2  device4     network    Ethernet interface
+pci@0000:00:02.0  device3     network    82540EM Gigabit Ethernet Controller
+pci@0000:00:01.0  device2     network    Ethernet interface
+                  docker0     network    Ethernet interface
+
+
+        """
+        result, output = self.perform_check(
+            capsys,
+            cmd_effects=[lshw_output],
+            read_effects="N",
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            PASS -- PCI
+                    The following PCI device(s) are available:
+                    device1 (0000:00:00.0), device2 (0000:00:01.0), device3 (0000:00:02.0),
+                    device4 (0000:00:1f.2)
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_no_iommu_devices(self, capsys):
+        """Test the case where no IOMMU devices are found."""
+        lshw_output = """\
+Bus info          Device      Class      Description
+====================================================
+pci@0000:00:02.0  enp0s2      network    82540EM Gigabit Ethernet Controller
+pci@0000:00:1f.2  docker0     network    Ethernet interface
+        """
+        iommu_devices = ["0000:00:00.0", "0000:00:01.0"]
+        with mock.patch("glob.glob", return_value=iommu_devices):
+            result, output = self.perform_check(
+                capsys,
+                cmd_effects=[lshw_output],
+                read_effects="N",
+            )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            WARN -- PCI
+                    IOMMU enabled for vfio-pci, but no network PCI devices found.
+            """
+        )
+        assert result is CheckState.WARNING
+
+    def test_lshw_error(self, capsys):
+        """Test the case where an error is hit when searching for network devices."""
+        iommu_devices = [
+            "0000:00:00.0",
+            "0000:00:01.0",
+            "0000:00:02.0",
+            "0000:00:1f.0",
+            "0000:00:1f.2",
+            "0000:00:1f.3",
+        ]
+        with mock.patch("glob.glob", return_value=iommu_devices):
+            result, output = self.perform_check(
+                capsys,
+                cmd_effects=[subprocess.SubprocessError],
+                read_effects="N",
+            )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            ERROR -- PCI
+                     The cmd 'lshw -businfo -c network' failed - unable to
+                     determine the network devices on the host.
+            """
+        )
+        assert result is CheckState.ERROR
+
+    def test_no_net_devices(self, capsys):
+        """Test the case where no network devices are found."""
+        lshw_output = """\
+Bus info          Device      Class      Description
+====================================================
+        """
+        iommu_devices = [
+            "0000:00:00.0",
+            "0000:00:01.0",
+            "0000:00:02.0",
+            "0000:00:1f.0",
+            "0000:00:1f.2",
+            "0000:00:1f.3",
+        ]
+        with mock.patch("glob.glob", return_value=iommu_devices):
+            result, output = self.perform_check(
+                capsys,
+                cmd_effects=[
+                    lshw_output,
+                ],
+                read_effects="N",
+            )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            WARN -- PCI (no PCI network devices found)
+            """
+        )
+        assert result is CheckState.WARNING
+
+    def test_failed_dependency(self, capsys):
+        """Test a dependency failure."""
+        result, output = self.perform_check(capsys, failed_deps=self.deps)
+        assert textwrap.dedent(output) == textwrap.dedent(
+            """\
+            SKIP -- PCI
+                    Skipped due to failed checks: IOMMU
+            """
+        )
+        assert result is CheckState.SKIPPED
 
 
 class TestSharedMemPageMaxSize(_CheckTestBase):
