@@ -5,7 +5,7 @@
 
 The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.10.1.
 
-### v1.1.14 (2024-03-04)
+### v1.1.15 (2024-03-04)
 
 - `host-check` now has separate checks for IOMMU being enabled and PCI device availability.
 

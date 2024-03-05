@@ -1117,7 +1117,8 @@ def check_pci_devices() -> CheckFuncReturn:
             os.path.basename(p) for p in glob.glob(iommu_dev_filepath)
         ]
     except Exception:
-        pass
+        # If getting the directory fails, then assume IOMMU is not enabled
+        iommu_devices = []
 
     # List the network PCI devices
     try:
@@ -1148,7 +1149,7 @@ def check_pci_devices() -> CheckFuncReturn:
         if not network_devices:
             return (
                 CheckState.WARNING,
-                "IOMMU enabled for vfio-pci, but no network PCI devices found.",
+                "No PCI network devices found with IOMMU enabled for vfio-pci.",
             )
 
     net_devs_list = []
