@@ -3257,7 +3257,7 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             WARN -- PCI devices
-                    IOMMU enabled for vfio-pci, but no network PCI devices found.
+                    No PCI network devices found with IOMMU enabled for vfio-pci.
             """
         )
         assert result is CheckState.WARNING
