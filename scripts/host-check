@@ -1126,7 +1126,8 @@ def check_pci_devices() -> CheckFuncReturn:
                 if f.read().strip().upper() in ("Y", "1"):
                     require_iommu = False
         except OSError:
-            # If the no-IOMMU file does not exist, then no-IOMMU mode can't be enabled.
+            # If the no-IOMMU file does not exist, then no-IOMMU mode can't be
+            enabled.
             pass
     else:
         require_iommu = False
