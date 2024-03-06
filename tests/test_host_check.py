@@ -3172,12 +3172,22 @@ class TestPCIDevices(_CheckTestBase):
 
     check_group = "xrd-vrouter"
     check_name = "PCI devices"
-    deps = ["IOMMU"]
-    cmds = ["lshw -businfo -c network"]
-    files = []
+    deps = ["Interface kernel driver"]
+    cmds = [
+        "lsmod | grep -q '^vfio_pci '",
+        "grep -q /vfio-pci.ko /lib/modules/*/modules.builtin",
+        "lsmod | grep -q '^igb_uio '",
+        "grep -q /igb_uio.ko /lib/modules/*/modules.builtin",
+        "lshw -businfo -c network",
+    ]
+    files = ["/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"]
 
     def test_success_vfio_iommu(self, capsys):
-        """Test the success case for vfio with IOMMU enabled."""
+        """
+        Test the success case for vfio with IOMMU enabled and igb_uio not
+        supported.
+
+        """
         lshw_output = """\
 Bus info          Device      Class      Description
 ====================================================
@@ -3199,7 +3209,13 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         with mock.patch("glob.glob", return_value=iommu_devices):
             result, output = self.perform_check(
                 capsys,
-                cmd_effects=[lshw_output],
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
                 read_effects="N",
             )
         assert textwrap.dedent(output) == textwrap.dedent(
@@ -3224,11 +3240,17 @@ pci@0000:00:01.0  device2     network    Ethernet interface
 
 
         """
-        result, output = self.perform_check(
-            capsys,
-            cmd_effects=[lshw_output],
-            read_effects="N",
-        )
+        with mock.patch("glob.glob", return_value=[]):
+            result, output = self.perform_check(
+                capsys,
+                cmd_effects=[
+                    "",
+                    None,
+                    "",
+                    None,
+                    lshw_output,
+                ],
+            )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
             PASS -- PCI devices
@@ -3240,7 +3262,10 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         assert result is CheckState.SUCCESS
 
     def test_no_iommu_devices(self, capsys):
-        """Test the case where no IOMMU devices are found."""
+        """
+        Test the case where no IOMMU devices are found when in IOMMU mode.
+
+        """
         lshw_output = """\
 Bus info          Device      Class      Description
 ====================================================
@@ -3251,7 +3276,13 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         with mock.patch("glob.glob", return_value=iommu_devices):
             result, output = self.perform_check(
                 capsys,
-                cmd_effects=[lshw_output],
+                cmd_effects=[
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                    subprocess.SubprocessError,
+                    lshw_output,
+                ],
                 read_effects="N",
             )
         assert textwrap.dedent(output) == textwrap.dedent(
@@ -3275,8 +3306,13 @@ pci@0000:00:1f.2  docker0     network    Ethernet interface
         with mock.patch("glob.glob", return_value=iommu_devices):
             result, output = self.perform_check(
                 capsys,
-                cmd_effects=[subprocess.SubprocessError],
-                read_effects="N",
+                cmd_effects=[
+                    "",
+                    None,
+                    "",
+                    None,
+                    subprocess.SubprocessError,
+                ],
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
@@ -3305,9 +3341,12 @@ Bus info          Device      Class      Description
             result, output = self.perform_check(
                 capsys,
                 cmd_effects=[
+                    "",
+                    None,
+                    "",
+                    None,
                     lshw_output,
                 ],
-                read_effects="N",
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
@@ -3322,7 +3361,7 @@ Bus info          Device      Class      Description
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
             SKIP -- PCI devices
-                    Skipped due to failed checks: IOMMU
+                    Skipped due to failed checks: Interface kernel driver
             """
         )
         assert result is CheckState.SKIPPED

@@ -1109,16 +1109,38 @@ def check_iommu() -> CheckFuncReturn:
 
 def check_pci_devices() -> CheckFuncReturn:
     """Check PCI devices are available."""
+    # If only vfio-pci is supported (and it is not in no-IOMMU mode), then
+    # check for PCI network devices in IOMMU group, otherwise check for any
+    # PCI network devices.
+    if (
+        PCIDriver("vfio-pci").is_supported()
+        and not PCIDriver("igb_uio").is_supported()
+    ):
+        require_iommu = True
+        # Overide require_iommu if no-IOMMU mode is enabled
+        noiommu_filepath = (
+            "/sys/module/vfio/parameters/enable_unsafe_noiommu_mode"
+        )
+        try:
+            with open(noiommu_filepath, "r", encoding="utf-8") as f:
+                if f.read().strip().upper() in ("Y", "1"):
+                    require_iommu = False
+        except OSError:
+            # If the no-IOMMU file does not exist, then no-IOMMU mode can't be enabled.
+            pass
+    else:
+        require_iommu = False
 
-    # Check if IOMMU is enabled on the host by getting the IOMMU devices
-    iommu_dev_filepath = "/sys/class/iommu/*/devices/*"
-    try:
-        iommu_devices = [
-            os.path.basename(p) for p in glob.glob(iommu_dev_filepath)
-        ]
-    except Exception:
-        # If getting the directory fails, then assume IOMMU is not enabled
-        iommu_devices = []
+    if require_iommu:
+        # Get IOMMU devices
+        iommu_dev_filepath = "/sys/class/iommu/*/devices/*"
+        try:
+            iommu_devices = [
+                os.path.basename(p) for p in glob.glob(iommu_dev_filepath)
+            ]
+        except Exception:
+            # If getting the directory fails, then assume IOMMU is not enabled
+            iommu_devices = []
 
     # List the network PCI devices
     try:
@@ -1144,7 +1166,7 @@ def check_pci_devices() -> CheckFuncReturn:
         )
 
     # If in IOMMU mode then check if the network devices are in the IOMMU group
-    if iommu_devices:
+    if require_iommu:
         network_devices &= set(iommu_devices)
         if not network_devices:
             return (
@@ -1520,7 +1542,7 @@ VROUTER_CHECKS = [
     Check("Hugepages", check_hugepages, []),
     Check("Interface kernel driver", check_interface_kernel_driver, []),
     Check("IOMMU", check_iommu, ["Interface kernel driver"]),
-    Check("PCI devices", check_pci_devices, ["IOMMU"]),
+    Check("PCI devices", check_pci_devices, ["Interface kernel driver"]),
     Check("Shared memory pages max size", check_shmem_pages_max_size, []),
     Check("Real-time Group Scheduling", check_realtime_group_sched, []),
 ]
