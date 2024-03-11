@@ -3263,7 +3263,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
 
     def test_no_iommu_devices(self, capsys):
         """
-        Test the case where no IOMMU devices are found when in IOMMU mode.
+        Test the case where no IOMMU network devices are found when in IOMMU mode.
 
         """
         lshw_output = """\
