@@ -1,7 +1,7 @@
 # Dockerfile to build a container with the host-check script
 #
 # Build:
-# podman build -t host-check <path to host-check dir>
+# podman build -t host-check <path to xrd-tools dir>
 # Run (must be run with host network and mount /lib/modules):
 # podman run --net host -v /lib/modules:/lib/modules  host-check
 
