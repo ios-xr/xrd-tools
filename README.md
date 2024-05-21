@@ -25,7 +25,7 @@ All active versions of python3 are supported.
 
 The `xr-compose` script also requires `docker-compose` (v1) to be on `PATH` and for the `PyYAML` python package be installed (e.g. in an active virtual environment).
 
-Podman/docker is requiered to build a `host-check` container image from the Dockerfile.
+Podman/docker is required to build a `host-check` container image from the Dockerfile.
 
 
 ## Repo Contents
