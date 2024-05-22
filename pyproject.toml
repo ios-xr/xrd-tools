@@ -8,6 +8,11 @@ include = """
     | host-check$
 )
 """
+exclude = """
+(
+    Dockerfile.host-check$
+)
+"""
 
 [tool.isort]
 # Make compatible with Black

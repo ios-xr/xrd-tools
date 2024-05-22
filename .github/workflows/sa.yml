@@ -10,7 +10,6 @@ on:
       - 'docs/**'
       - 'templates/**'
       - 'commit-check'
-      - 'Dockerfile.host-check'
 jobs:
   python:
     runs-on: ubuntu-latest
