@@ -51,6 +51,10 @@ Template files, whether illustrative scripts or template config/topology files.
 
 Tests for the scripts.
 
+### `Dockerfile.host-check`
+
+Dockerfile for producing a `host-check` container image.
+
 
 ## Versioning Scheme
 
