@@ -4,13 +4,8 @@ target-version = ["py37", "py38", "py39", "py310"]
 include = """
 (
     \\.py$
-    | xr-compose$
-    | host-check$
-)
-"""
-exclude = """
-(
-    Dockerfile.host-check$
+    | scripts/xr-compose$
+    | scripts/host-check$
 )
 """
 

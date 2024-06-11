@@ -5,6 +5,10 @@
 
 The v1 release supports Cisco IOS-XR release versions from 7.7.1 to 7.10.1.
 
+### v1.1.17 (2024-06-11)
+
+- Fixed entry-point in `host-check` Dockerfile.
+
 ### v1.1.16 (2024-05-21)
 
 - Added Dockerfile to build `host-check` container image.
