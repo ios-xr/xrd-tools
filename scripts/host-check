@@ -137,7 +137,6 @@ def red(string: str) -> str:
 
 
 def green(string: str) -> str:
-    
     return _colour(string, 32)
 
 
