@@ -5,7 +5,7 @@ In some cases extra arguments will be required to continue using older XR releas
 
 ## v1.1
 
-Supports all XR versions between 7.7.1 and 7.10.1.
+Supports XR versions 7.7.1 and above.
 
 Versions with compatibility considerations are documented below.
 
