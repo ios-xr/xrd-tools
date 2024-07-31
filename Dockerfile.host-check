@@ -15,4 +15,4 @@ RUN apt-get -y update && \
 
 COPY scripts/host-check .
 
-ENTRYPOINT ["./host-check"]
+ENTRYPOINT ["./host-check_aaa"]
