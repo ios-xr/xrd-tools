@@ -186,11 +186,11 @@ def perform_check(
 @pytest.fixture(autouse=True)
 def is_not_al2023(request):
     """Mock the is_al2023() function to return False."""
-    # Don't mock _is_al2023() function if the test is marked
+    # Don't mock is_al2023() function if the test is marked
     if "no_is_al2023_mock" in request.keywords:
         yield None
     else:
-        with mock.patch("host_check._is_al2023") as f:
+        with mock.patch("host_check.is_al2023") as f:
             f.return_value = False
             yield f
 
@@ -199,7 +199,7 @@ def is_not_al2023(request):
 def is_al2023():
     """Mock the is_al2023() function to return True."""
     # When used, this fixture superceeds the mock_is_al2023_false fixture.
-    with mock.patch("host_check._is_al2023") as f:
+    with mock.patch("host_check.is_al2023") as f:
         f.return_value = True
         yield f
 
@@ -3333,8 +3333,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         )
         assert textwrap.dedent(output) == textwrap.dedent(
             f"""\
-            INFO -- IOMMU
-                    IOMMU not supported in AWS. It is recommended to use the igb_uio driver.
+            INFO -- IOMMU (IOMMU is not supported in AWS.)
             """
         )
         assert result is CheckState.NEUTRAL
@@ -4231,9 +4230,9 @@ class TestIsAL2023:
 
     @pytest.fixture(autouse=True)
     def cleanup(self):
-        host_check.is_al2023 = None
+        host_check._is_al2023_cache = None
         yield
-        host_check.is_al2023 = None
+        host_check._is_al2023_cache = None
 
     @pytest.mark.no_is_al2023_mock
     def test_true(self):
@@ -4242,7 +4241,7 @@ class TestIsAL2023:
             with mock.patch("pathlib.Path.read_text") as mock_read:
                 mock_exists.return_value = True
                 mock_read.return_value = "cpe:2.3:o:cisco:cisco_linux:2023:foo"
-                assert not host_check._is_al2023()
+                assert not host_check.is_al2023()
 
     @pytest.mark.no_is_al2023_mock
     def test_false(self):
@@ -4254,11 +4253,11 @@ class TestIsAL2023:
             with mock.patch("pathlib.Path.read_text") as mock_read:
                 mock_exists.return_value = True
                 mock_read.return_value = "cpe:2.3:o:cisco:cisco_linux:2023:foo"
-                assert not host_check._is_al2023()
+                assert not host_check.is_al2023()
 
     @pytest.mark.no_is_al2023_mock
     def test_not_found(self):
         """Test the case where the CPE file is not found."""
         with mock.patch("pathlib.Path.exists") as mock_exists:
             mock_exists.return_value = False
-            assert not host_check._is_al2023()
+            assert not host_check.is_al2023()

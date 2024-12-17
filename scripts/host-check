@@ -116,7 +116,7 @@ MODULE_EXPECTED_PARAMS = {
 }
 
 # Global variable for caching result of check of base OS for AL 2023.
-is_al2023 = None
+_is_al2023_cache = None
 
 # -----------------------------------------------------------------------------
 # Colours
@@ -320,21 +320,21 @@ def _get_cgroup_version() -> int:
         raise Exception("Unable to detect cgroup version in use")
 
 
-def _is_al2023() -> bool:
+def is_al2023() -> bool:
     """Detect if the host is running Amazon Linux 2023."""
-    global is_al2023
+    global _is_al2023_cache
 
-    if is_al2023 is not None:
-        return is_al2023
+    if _is_al2023_cache is not None:
+        return _is_al2023_cache
 
     cpe_path = Path("/etc/system-release-cpe")
-    is_al2023 = False
+    _is_al2023_cache = False
     if cpe_path.exists():
         cpe = cpe_path.read_text(encoding="utf-8").strip()
         if re.match(AMAZON_LINUX_CPE_RGX, cpe):
-            is_al2023 = True
+            _is_al2023_cache = True
 
-    return is_al2023
+    return _is_al2023_cache
 
 
 # -----------------------------------------------------------------------------
@@ -1054,7 +1054,7 @@ def check_interface_kernel_driver() -> CheckFuncReturn:
         driver.name for driver in installed_not_supported
     )
     # In AWS, must have igb_uio driver available
-    if _is_al2023():
+    if is_al2023():
         if "igb_uio" in supported_str:
             return CheckState.SUCCESS, f"Loaded PCI drivers: {supported_str}"
         elif "igb_uio" in installed_not_supported_str:
@@ -1101,12 +1101,8 @@ def check_iommu() -> CheckFuncReturn:
         return CheckState.NEUTRAL, "vfio-pci driver unavailable"
 
     # In AWS unconditonally succeed as IOMMU cannot be supported.
-    if _is_al2023():
-        return (
-            CheckState.NEUTRAL,
-            "IOMMU not supported in AWS. It is recommended to use the igb_uio "
-            "driver.",
-        )
+    if is_al2023():
+        return CheckState.NEUTRAL, "IOMMU is not supported in AWS."
 
     # If igb_uio is supported, treat warnings as info, because even though
     # IOMMU isn't enabled, igb_uio can be used.
@@ -1900,7 +1896,7 @@ def run_checks_specific_platform(
         perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]).values(),
     )
     # If AL2023 is detected, run AWS host checks
-    if _is_al2023() and len(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]) > 0:
+    if is_al2023() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
         print_subheading("AWS host checks")
         al2023_results = perform_checks(
             PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
@@ -1969,10 +1965,7 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
             plat_results.values()
         )
         # If AL2023 is detected, run AWS host checks
-        if (
-            _is_al2023()
-            and len(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]) > 0
-        ):
+        if is_al2023() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
             print_subheading(f"AWS host checks for {platform}")
             al2023_results = perform_checks(
                 PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
