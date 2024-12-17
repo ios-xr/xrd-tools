@@ -330,7 +330,7 @@ def _is_al2023() -> bool:
     cpe_path = Path("/etc/system-release-cpe")
     is_al2023 = False
     if cpe_path.exists():
-        cpe = cpe_path.read_text().strip()
+        cpe = cpe_path.read_text(encoding="utf-8").strip()
         if re.match(AMAZON_LINUX_CPE_RGX, cpe):
             is_al2023 = True
 
@@ -499,7 +499,7 @@ def check_cgroups() -> CheckFuncReturn:
             "contain cgroup v1 mounts.",
         )
 
-    assert version == 1 or version == 2
+    assert version in (1, 2)
 
     if version == 1:
         not_exist_mounts = [
@@ -1549,7 +1549,7 @@ def check_aws_cmdline() -> CheckFuncReturn:
     # Expected values are as set during AMI creation by the XRd packer tool.
     # See https://github.com/ios-xr/xrd-packer
 
-    with open("/proc/cmdline", "r") as f:
+    with open("/proc/cmdline", "r", encoding="utf-8") as f:
         cmdline = f.read().strip().split()
 
     cmdline_args = {k: v for k, _, v in (x.partition("=") for x in cmdline)}
@@ -1711,7 +1711,7 @@ XR_COMPOSE_CHECKS = [
     Check("Bridge iptables", check_bridge_iptables, []),
 ]
 
-CONTROL_PLANE_AWS_CHECKS = []
+CONTROL_PLANE_AWS_CHECKS: List[Check] = []
 
 VROUTER_AWS_CHECKS = [
     Check("Cmdline arguments", check_aws_cmdline, []),
@@ -1896,17 +1896,19 @@ def run_checks_specific_platform(
     """
 
     print_heading(f"Platform checks - {platform}")
-    plat_results = perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform])
+    plat_results = list(
+        perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]).values(),
+    )
     # If AL2023 is detected, run AWS host checks
     if _is_al2023() and len(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]) > 0:
         print_subheading("AWS host checks")
         al2023_results = perform_checks(
             PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
         )
-        plat_results.update(al2023_results)
-    plat_failure = any(check.is_failure() for check in plat_results.values())
-    plat_error = any(c is CheckState.ERROR for c in plat_results.values())
-    plat_warning = any(c is CheckState.WARNING for c in plat_results.values())
+        plat_results += list(al2023_results.values())
+    plat_failure = any(check.is_failure() for check in plat_results)
+    plat_error = any(c is CheckState.ERROR for c in plat_results)
+    plat_warning = any(c is CheckState.WARNING for c in plat_results)
 
     extra_results = run_if_extra_checks(extra_checks)
 
@@ -1963,6 +1965,9 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
     for platform, checks in PLATFORM_CHECKS_MAP.items():
         print_subheading(f"{platform} checks")
         plat_results = perform_checks(checks)
+        base_and_plat_results = list(base_results.values()) + list(
+            plat_results.values()
+        )
         # If AL2023 is detected, run AWS host checks
         if (
             _is_al2023()
@@ -1972,10 +1977,7 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
             al2023_results = perform_checks(
                 PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
             )
-            plat_results.update(al2023_results)
-        base_and_plat_results = list(base_results.values()) + list(
-            plat_results.values()
-        )
+            base_and_plat_results += list(al2023_results.values())
         if any(result.is_failure() for result in base_and_plat_results):
             platforms_not_supported.add(platform)
         elif any(
