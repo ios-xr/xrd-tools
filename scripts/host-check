@@ -1897,9 +1897,7 @@ def run_checks_specific_platform(
     # If Amazon Linux is detected, run AWS host checks
     if is_amazon_linux() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
         print_subheading("AWS host checks")
-        al_results = perform_checks(
-            PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
-        )
+        al_results = perform_checks(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"])
         plat_results += list(al_results.values())
     plat_failure = any(check.is_failure() for check in plat_results)
     plat_error = any(c is CheckState.ERROR for c in plat_results)
