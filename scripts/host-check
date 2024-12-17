@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2020-2023 Cisco Systems Inc.
+# Copyright 2020-2024 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1897,10 +1897,10 @@ def run_checks_specific_platform(
     # If Amazon Linux is detected, run AWS host checks
     if is_amazon_linux() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
         print_subheading("AWS host checks")
-        al2023_results = perform_checks(
+        al_results = perform_checks(
             PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
         )
-        plat_results += list(al2023_results.values())
+        plat_results += list(al_results.values())
     plat_failure = any(check.is_failure() for check in plat_results)
     plat_error = any(c is CheckState.ERROR for c in plat_results)
     plat_warning = any(c is CheckState.WARNING for c in plat_results)
@@ -1963,13 +1963,13 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         base_and_plat_results = list(base_results.values()) + list(
             plat_results.values()
         )
-        # If AL2023 is detected, run AWS host checks
+        # If Amazon Linux is detected, run AWS host checks
         if is_amazon_linux() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
             print_subheading(f"AWS host checks for {platform}")
-            al2023_results = perform_checks(
+            al_results = perform_checks(
                 PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
             )
-            base_and_plat_results += list(al2023_results.values())
+            base_and_plat_results += list(al_results.values())
         if any(result.is_failure() for result in base_and_plat_results):
             platforms_not_supported.add(platform)
         elif any(
