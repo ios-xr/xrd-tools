@@ -40,12 +40,12 @@ import enum
 import functools
 import glob
 import os
-from pathlib import Path
 import re
 import shlex
 import subprocess
 import textwrap
 from dataclasses import dataclass
+from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -1055,9 +1055,9 @@ def check_interface_kernel_driver() -> CheckFuncReturn:
     )
     # In AWS, must have igb_uio driver available
     if _is_al2023():
-        if PCIDriver("igb_uio").is_supported():
+        if "igb_uio" in supported_str:
             return CheckState.SUCCESS, f"Loaded PCI drivers: {supported_str}"
-        elif PCIDriver("igb_uio").is_installed():
+        elif "igb_uio" in installed_not_supported_str:
             return (
                 CheckState.NEUTRAL,
                 "igb_uio driver is installed but not loaded.\n"
@@ -1103,7 +1103,7 @@ def check_iommu() -> CheckFuncReturn:
     # In AWS unconditonally succeed as IOMMU cannot be supported.
     if _is_al2023():
         return (
-            CheckState.SUCCESS,
+            CheckState.NEUTRAL,
             "IOMMU not supported in AWS. It is recommended to use the igb_uio "
             "driver.",
         )
@@ -1539,10 +1539,8 @@ def check_bridge_iptables() -> CheckFuncReturn:
 
 
 # -------------------------------------
-# Docker checks
+# AWS checks
 # -------------------------------------
-
-
 
 
 def check_aws_cmdline() -> CheckFuncReturn:
@@ -1551,13 +1549,10 @@ def check_aws_cmdline() -> CheckFuncReturn:
     # Expected values are as set during AMI creation by the XRd packer tool.
     # See https://github.com/ios-xr/xrd-packer
 
-    cmdline_args = {
-        k: v
-        for k, _, v in (
-            x.partition("=")
-            for x in Path("/proc/cmdline").read_text().strip().split()
-        )
-    }
+    with open("/proc/cmdline", "r") as f:
+        cmdline = f.read().strip().split()
+
+    cmdline_args = {k: v for k, _, v in (x.partition("=") for x in cmdline)}
 
     # Check the args with known expected values
     expected_arg_values = {
@@ -1633,8 +1628,9 @@ def check_aws_cmdline() -> CheckFuncReturn:
     if isolated_cores & irqaffinity:
         return (
             CheckState.FAILED,
-            f"isolcpus {cmdline_args['isolcpus']} overlap with irqaffinity"
-            f"cores {cmdline_args['irqaffinity']}",
+            "Expected isolcpus and irqaffinity to be disjoint, but found "
+            f"isolcpus={cmdline_args['isolcpus']} and "
+            f"irqaffinity={cmdline_args['irqaffinity']}",
         )
 
     if len(isolated_cores) < MIN_CPU_CORES_AVAILABLE:
@@ -1730,8 +1726,8 @@ EXTRA_CHECKS_MAP: Mapping[str, List[Check]] = {
     "xr-compose": XR_COMPOSE_CHECKS,
 }
 PLATFORM_AWS_CHECKS_MAP: Mapping[str, List[Check]] = {
-    "xrd-control-plane": CONTROL_PLANE_AWS_CHECKS,
-    "xrd-vrouter": VROUTER_AWS_CHECKS,
+    "xrd-control-plane-aws": CONTROL_PLANE_AWS_CHECKS,
+    "xrd-vrouter-aws": VROUTER_AWS_CHECKS,
 }
 
 # -----------------------------------------------------------------------------
@@ -1902,9 +1898,11 @@ def run_checks_specific_platform(
     print_heading(f"Platform checks - {platform}")
     plat_results = perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform])
     # If AL2023 is detected, run AWS host checks
-    if _is_al2023() and len(PLATFORM_AWS_CHECKS_MAP[platform]) > 0:
+    if _is_al2023() and len(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]) > 0:
         print_subheading("AWS host checks")
-        al2023_results = perform_checks(PLATFORM_AWS_CHECKS_MAP[platform])
+        al2023_results = perform_checks(
+            PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
+        )
         plat_results.update(al2023_results)
     plat_failure = any(check.is_failure() for check in plat_results.values())
     plat_error = any(c is CheckState.ERROR for c in plat_results.values())
@@ -1966,9 +1964,14 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         print_subheading(f"{platform} checks")
         plat_results = perform_checks(checks)
         # If AL2023 is detected, run AWS host checks
-        if _is_al2023() and len(PLATFORM_AWS_CHECKS_MAP[platform]) > 0:
+        if (
+            _is_al2023()
+            and len(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]) > 0
+        ):
             print_subheading(f"AWS host checks for {platform}")
-            al2023_results = perform_checks(PLATFORM_AWS_CHECKS_MAP[platform])
+            al2023_results = perform_checks(
+                PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
+            )
             plat_results.update(al2023_results)
         base_and_plat_results = list(base_results.values()) + list(
             plat_results.values()
