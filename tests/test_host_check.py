@@ -184,22 +184,22 @@ def perform_check(
 
 
 @pytest.fixture(autouse=True)
-def is_not_al2023(request):
-    """Mock the is_al2023() function to return False."""
-    # Don't mock is_al2023() function if the test is marked
-    if "no_is_al2023_mock" in request.keywords:
+def is_not_amazon_linux(request):
+    """Mock the is_amazon_linux() function to return False."""
+    # Don't mock is_amazon_linux() function if the test is marked
+    if "no_is_amazon_linux_mock" in request.keywords:
         yield None
     else:
-        with mock.patch("host_check.is_al2023") as f:
+        with mock.patch("host_check.is_amazon_linux") as f:
             f.return_value = False
             yield f
 
 
 @pytest.fixture()
-def is_al2023():
-    """Mock the is_al2023() function to return True."""
-    # When used, this fixture superceeds the mock_is_al2023_false fixture.
-    with mock.patch("host_check.is_al2023") as f:
+def is_amazon_linux():
+    """Mock the is_amazon_linux() function to return True."""
+    # When used, this fixture superceeds the mock_is_amazon_linux_false fixture.
+    with mock.patch("host_check.is_amazon_linux") as f:
         f.return_value = True
         yield f
 
@@ -271,7 +271,7 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
         assert output == cli_output
         assert exit_code == EXIT_SUCCESS
 
-    def test_no_args_aws(self, capsys, is_al2023):
+    def test_no_args_aws(self, capsys, is_amazon_linux):
         """Test running host-check with no arguments in AWS."""
         exit_code, output = self.run_host_check(capsys, [])
         cli_output = f"""\
@@ -336,7 +336,7 @@ Host environment set up correctly for xrd-vrouter
         assert output == cli_output
         assert exit_code == EXIT_SUCCESS
 
-    def test_plat_xrd_aws(self, capsys, is_al2023):
+    def test_plat_xrd_aws(self, capsys, is_amazon_linux):
         """Test running host-check with the xrd CP platform argument in AWS."""
         exit_code, output = self.run_host_check(
             capsys, ["-p", "xrd-control-plane"]
@@ -354,7 +354,7 @@ Host environment set up correctly for xrd-control-plane
         assert output == cli_output
         assert exit_code == EXIT_SUCCESS
 
-    def test_plat_xrd_vrouter_aws(self, capsys, is_al2023):
+    def test_plat_xrd_vrouter_aws(self, capsys, is_amazon_linux):
         """
         Test running host-check with the xrd-vrouter platform argument in AWS.
 
@@ -3034,7 +3034,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         )
         assert result is CheckState.ERROR
 
-    def test_aws_igb_uio(self, capsys, is_al2023):
+    def test_aws_igb_uio(self, capsys, is_amazon_linux):
         """Test the case in AWS where the igb_uio driver is present."""
         # Command (grep -q) simply returns 0.
         result, output = self.perform_check(
@@ -3055,7 +3055,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         )
         assert result is CheckState.SUCCESS
 
-    def test_aws_igb_uio_not_loaded(self, capsys, is_al2023):
+    def test_aws_igb_uio_not_loaded(self, capsys, is_amazon_linux):
         """Test the case in AWS where the igb_uio driver is present."""
         # Command (grep -q) simply returns 0.
         result, output = self.perform_check(
@@ -3078,7 +3078,7 @@ class TestGDPKernelDriver(_CheckTestBase):
         )
         assert result is CheckState.NEUTRAL
 
-    def test_aws_igb_uio_missing(self, capsys, is_al2023):
+    def test_aws_igb_uio_missing(self, capsys, is_amazon_linux):
         """Test the case in AWS where the igb_uio driver is present."""
         # Command (grep -q) simply returns 0.
         result, output = self.perform_check(
@@ -3325,7 +3325,7 @@ pci@0000:00:01.0  device2     network    Ethernet interface
         )
         assert result is CheckState.NEUTRAL
 
-    def test_aws(self, capsys, is_al2023):
+    def test_aws(self, capsys, is_amazon_linux):
         """Test that in AWS the expected info result is seen."""
         result, output = self.perform_check(
             capsys,
@@ -4080,7 +4080,7 @@ class TestAwsCmdline(_CheckTestBase):
                 for key, value in self.values.items()
             )
 
-    def test_success(self, capsys, is_al2023):
+    def test_success(self, capsys, is_amazon_linux):
         """Test the success case."""
         result, output = self.perform_check(
             capsys,
@@ -4106,7 +4106,9 @@ class TestAwsCmdline(_CheckTestBase):
             ("rcupdate.rcu_normal_after_boot", "0", "1"),
         ],
     )
-    def test_wrong_arg_values(self, capsys, is_al2023, arg, value, expected):
+    def test_wrong_arg_values(
+        self, capsys, is_amazon_linux, arg, value, expected
+    ):
         """
         Test the failure cases for incorrect arg values.
 
@@ -4143,7 +4145,7 @@ class TestAwsCmdline(_CheckTestBase):
             "rcupdate.rcu_normal_after_boot",
         ],
     )
-    def test_missing_values(self, capsys, is_al2023, arg):
+    def test_missing_values(self, capsys, is_amazon_linux, arg):
         """Test the failure cases for missing arguments."""
         cmdline = str(self.Cmdline(missing_flags=[arg]))
         result, output = self.perform_check(
@@ -4166,7 +4168,9 @@ class TestAwsCmdline(_CheckTestBase):
             ("rcu_nocbs", "0"),
         ],
     )
-    def test_non_matching_isolated_cpus(self, capsys, is_al2023, arg, value):
+    def test_non_matching_isolated_cpus(
+        self, capsys, is_amazon_linux, arg, value
+    ):
         """
         Test the failure case for non-matching isolated CPUs.
 
@@ -4186,7 +4190,9 @@ class TestAwsCmdline(_CheckTestBase):
         )
         assert result is CheckState.FAILED
 
-    def test_overlapping_isolcpus_and_irqaffinity(self, capsys, is_al2023):
+    def test_overlapping_isolcpus_and_irqaffinity(
+        self, capsys, is_amazon_linux
+    ):
         """Test the failure case for overlapping isolcpus and irqaffinity."""
         cmdline = self.Cmdline(
             value_override={"isolcpus": "2-3", "irqaffinity": "0-3"}
@@ -4203,7 +4209,7 @@ class TestAwsCmdline(_CheckTestBase):
         )
         assert result is CheckState.FAILED
 
-    def test_not_enough_isolated_cores(self, capsys, is_al2023):
+    def test_not_enough_isolated_cores(self, capsys, is_amazon_linux):
         """Test the failure case for not enough isolated cores."""
         cmdline = self.Cmdline(
             value_override={
@@ -4230,20 +4236,20 @@ class TestIsAL2023:
 
     @pytest.fixture(autouse=True)
     def cleanup(self):
-        host_check._is_al2023_cache = None
+        host_check._is_amazon_linux_cache = None
         yield
-        host_check._is_al2023_cache = None
+        host_check._is_amazon_linux_cache = None
 
-    @pytest.mark.no_is_al2023_mock
+    @pytest.mark.no_is_amazon_linux_mock
     def test_true(self):
         """Test the case where the CPE file is found and matches AL2023."""
         with mock.patch("pathlib.Path.exists") as mock_exists:
             with mock.patch("pathlib.Path.read_text") as mock_read:
                 mock_exists.return_value = True
                 mock_read.return_value = "cpe:2.3:o:cisco:cisco_linux:2023:foo"
-                assert not host_check.is_al2023()
+                assert not host_check.is_amazon_linux()
 
-    @pytest.mark.no_is_al2023_mock
+    @pytest.mark.no_is_amazon_linux_mock
     def test_false(self):
         """
         Test the case where the CPE file is found and does not match AL2023.
@@ -4253,11 +4259,11 @@ class TestIsAL2023:
             with mock.patch("pathlib.Path.read_text") as mock_read:
                 mock_exists.return_value = True
                 mock_read.return_value = "cpe:2.3:o:cisco:cisco_linux:2023:foo"
-                assert not host_check.is_al2023()
+                assert not host_check.is_amazon_linux()
 
-    @pytest.mark.no_is_al2023_mock
+    @pytest.mark.no_is_amazon_linux_mock
     def test_not_found(self):
         """Test the case where the CPE file is not found."""
         with mock.patch("pathlib.Path.exists") as mock_exists:
             mock_exists.return_value = False
-            assert not host_check.is_al2023()
+            assert not host_check.is_amazon_linux()
