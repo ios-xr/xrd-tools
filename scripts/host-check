@@ -1559,7 +1559,6 @@ def check_aws_cmdline() -> CheckFuncReturn:
         "nosoftlockup": "",
         "hugepagesz": "1G",
         "default_hugepagesz": "1G",
-        "rcupdate.rcu_normal_after_boot": "1",
     }
     for arg, expected_value in expected_arg_values.items():
         if arg not in cmdline_args:

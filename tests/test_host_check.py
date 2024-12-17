@@ -4058,7 +4058,6 @@ class TestAwsCmdline(_CheckTestBase):
             "rcu_nocbs": "2-3",
             "hugepagesz": "1G",
             "default_hugepagesz": "1G",
-            "rcupdate.rcu_normal_after_boot": "1",
         }
 
         def __init__(
@@ -4103,7 +4102,6 @@ class TestAwsCmdline(_CheckTestBase):
             ("tsc", "unreliable", "reliable"),
             ("hugepagesz", "2M", "1G"),
             ("default_hugepagesz", "2M", "1G"),
-            ("rcupdate.rcu_normal_after_boot", "0", "1"),
         ],
     )
     def test_wrong_arg_values(
@@ -4142,7 +4140,6 @@ class TestAwsCmdline(_CheckTestBase):
             "tsc",
             "hugepagesz",
             "default_hugepagesz",
-            "rcupdate.rcu_normal_after_boot",
         ],
     )
     def test_missing_values(self, capsys, is_amazon_linux, arg):
