@@ -1,4 +1,4 @@
-# Copyright 2021-2023 Cisco Systems Inc.
+# Copyright 2021-2024 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ CHECKS_BY_GROUP = {
     "base": host_check.BASE_CHECKS,
     **host_check.PLATFORM_CHECKS_MAP,
     **host_check.EXTRA_CHECKS_MAP,
+    **host_check.PLATFORM_AWS_CHECKS_MAP,
 }
 
 
@@ -182,6 +183,27 @@ def perform_check(
     return result, output
 
 
+@pytest.fixture(autouse=True)
+def is_not_amazon_linux(request):
+    """Mock the is_amazon_linux() function to return False."""
+    # Don't mock is_amazon_linux() function if the test is marked
+    if "no_is_amazon_linux_mock" in request.keywords:
+        yield None
+    else:
+        with mock.patch("host_check.is_amazon_linux") as f:
+            f.return_value = False
+            yield f
+
+
+@pytest.fixture()
+def is_amazon_linux():
+    """Mock the is_amazon_linux() function to return True."""
+    # When used, this fixture superceeds the mock_is_amazon_linux_false fixture.
+    with mock.patch("host_check.is_amazon_linux") as f:
+        f.return_value = True
+        yield f
+
+
 # ------------------------------------------------------------------------------
 # Tests
 # ------------------------------------------------------------------------------
@@ -249,6 +271,37 @@ XR platforms supported: xrd-control-plane, xrd-vrouter
         assert output == cli_output
         assert exit_code == EXIT_SUCCESS
 
+    def test_no_args_aws(self, capsys, is_amazon_linux):
+        """Test running host-check with no arguments in AWS."""
+        exit_code, output = self.run_host_check(capsys, [])
+        cli_output = f"""\
+==============================
+Platform checks
+==============================
+
+base checks
+-----------------------
+Checks: {BASE_CHECKS_STR}
+
+xrd-control-plane checks
+-----------------------
+Checks: {CONTROL_PLANE_CHECKS_STR}
+
+xrd-vrouter checks
+-----------------------
+Checks: {VROUTER_CHECKS_STR}
+
+AWS host checks for xrd-vrouter
+-----------------------
+Checks: Cmdline arguments
+
+============================================================================
+XR platforms supported: xrd-control-plane, xrd-vrouter
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_SUCCESS
+
     def test_plat_xrd(self, capsys):
         """Test running host-check with the xrd CP platform argument."""
         exit_code, output = self.run_host_check(
@@ -275,6 +328,47 @@ Host environment set up correctly for xrd-control-plane
 Platform checks - xrd-vrouter
 ==============================
 Checks: {BASE_CHECKS_STR}, {VROUTER_CHECKS_STR}
+
+============================================================================
+Host environment set up correctly for xrd-vrouter
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_SUCCESS
+
+    def test_plat_xrd_aws(self, capsys, is_amazon_linux):
+        """Test running host-check with the xrd CP platform argument in AWS."""
+        exit_code, output = self.run_host_check(
+            capsys, ["-p", "xrd-control-plane"]
+        )
+        cli_output = f"""\
+==============================
+Platform checks - xrd-control-plane
+==============================
+Checks: {BASE_CHECKS_STR}, {CONTROL_PLANE_CHECKS_STR}
+
+============================================================================
+Host environment set up correctly for xrd-control-plane
+============================================================================
+"""
+        assert output == cli_output
+        assert exit_code == EXIT_SUCCESS
+
+    def test_plat_xrd_vrouter_aws(self, capsys, is_amazon_linux):
+        """
+        Test running host-check with the xrd-vrouter platform argument in AWS.
+
+        """
+        exit_code, output = self.run_host_check(capsys, ["-p", "xrd-vrouter"])
+        cli_output = f"""\
+==============================
+Platform checks - xrd-vrouter
+==============================
+Checks: {BASE_CHECKS_STR}, {VROUTER_CHECKS_STR}
+
+AWS host checks
+-----------------------
+Checks: Cmdline arguments
 
 ============================================================================
 Host environment set up correctly for xrd-vrouter
@@ -1437,7 +1531,7 @@ class TestCgroups(_CheckTestBase):
         )
         assert result is CheckState.ERROR
 
-    def test_v2_info(self, capsys):
+    def test_v2_success(self, capsys):
         """Test the case where v2 cgroups are in use."""
         with mock.patch("builtins.open", mock.mock_open(read_data="memory")):
             result, output = self.perform_check(
@@ -1445,11 +1539,10 @@ class TestCgroups(_CheckTestBase):
             )
         assert textwrap.dedent(output) == textwrap.dedent(
             """\
-            INFO -- Cgroups
-                    Cgroups v2 is in use - this is not supported for production environments.
+            PASS -- Cgroups (v2)
             """
         )
-        assert result is CheckState.NEUTRAL
+        assert result is CheckState.SUCCESS
 
     def test_subproc_error(self, capsys):
         """Test a subprocess error being raised."""
@@ -2941,6 +3034,72 @@ class TestGDPKernelDriver(_CheckTestBase):
         )
         assert result is CheckState.ERROR
 
+    def test_aws_igb_uio(self, capsys, is_amazon_linux):
+        """Test the case in AWS where the igb_uio driver is present."""
+        # Command (grep -q) simply returns 0.
+        result, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                "",
+                None,
+                subprocess.CalledProcessError(1, ""),
+                None,
+            ],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            PASS -- Interface kernel driver (Loaded PCI drivers: igb_uio)
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    def test_aws_igb_uio_not_loaded(self, capsys, is_amazon_linux):
+        """Test the case in AWS where the igb_uio driver is present."""
+        # Command (grep -q) simply returns 0.
+        result, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                "",
+            ],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            INFO -- Interface kernel driver
+                    igb_uio driver is installed but not loaded.
+                    Run 'modprobe igb_uio' to load the driver.
+            """
+        )
+        assert result is CheckState.NEUTRAL
+
+    def test_aws_igb_uio_missing(self, capsys, is_amazon_linux):
+        """Test the case in AWS where the igb_uio driver is present."""
+        # Command (grep -q) simply returns 0.
+        result, output = self.perform_check(
+            capsys,
+            cmd_effects=[
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+                subprocess.CalledProcessError(1, ""),
+            ],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            FAIL -- Interface kernel driver
+                    The igb_uio PCI driver is not loaded or installed.
+            """
+        )
+        assert result is CheckState.FAILED
+
 
 class TestIOMMU(_CheckTestBase):
     """Tests for the IOMMU check."""
@@ -3162,6 +3321,19 @@ pci@0000:00:01.0  device2     network    Ethernet interface
             f"""\
             INFO -- IOMMU
                     vfio-pci is set up in no-IOMMU mode, but IOMMU is recommended for security.
+            """
+        )
+        assert result is CheckState.NEUTRAL
+
+    def test_aws(self, capsys, is_amazon_linux):
+        """Test that in AWS the expected info result is seen."""
+        result, output = self.perform_check(
+            capsys,
+            cmd_effects=["", None],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            INFO -- IOMMU (IOMMU is not supported in AWS.)
             """
         )
         assert result is CheckState.NEUTRAL
@@ -3865,3 +4037,230 @@ class TestBridgeIptables(_CheckTestBase):
             """
         )
         assert result is CheckState.ERROR
+
+
+class TestAwsCmdline(_CheckTestBase):
+    check_group = "xrd-vrouter-aws"
+    check_name = "Cmdline arguments"
+    files = ["/proc/cmdline"]
+
+    class Cmdline:
+        SUCCESS_CMDLINE_OPTS = {
+            "nohz_full": "2-3",
+            "nohz": "on",
+            "skew_tick": "1",
+            "intel_pstate": "disable",
+            "tsc": "reliable",
+            "nosoftlockup": "",
+            "isolcpus": "2-3",
+            "irqaffinity": "0-1",
+            "hugepages": "6",
+            "rcu_nocbs": "2-3",
+            "hugepagesz": "1G",
+            "default_hugepagesz": "1G",
+        }
+
+        def __init__(
+            self,
+            *,
+            value_override: Optional[Dict[str, str]] = None,
+            missing_flags: Optional[List[str]] = None,
+        ):
+            self.values = self.SUCCESS_CMDLINE_OPTS.copy()
+            if value_override:
+                self.values.update(value_override)
+            if missing_flags:
+                for flag in missing_flags:
+                    del self.values[flag]
+
+        def __str__(self):
+            return " ".join(
+                f"{key}={value}" if value else key
+                for key, value in self.values.items()
+            )
+
+    def test_success(self, capsys, is_amazon_linux):
+        """Test the success case."""
+        result, output = self.perform_check(
+            capsys,
+            read_effects=[str(self.Cmdline())],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            PASS -- Cmdline arguments
+                    Expected cmdline args found with isolated cores 2-3
+            """
+        )
+        assert result is CheckState.SUCCESS
+
+    @pytest.mark.parametrize(
+        "arg,value,expected",
+        [
+            ("nohz", "off", "on"),
+            ("skew_tick", "0", "1"),
+            ("intel_pstate", "enable", "disable"),
+            ("tsc", "unreliable", "reliable"),
+            ("hugepagesz", "2M", "1G"),
+            ("default_hugepagesz", "2M", "1G"),
+        ],
+    )
+    def test_wrong_arg_values(
+        self, capsys, is_amazon_linux, arg, value, expected
+    ):
+        """
+        Test the failure cases for incorrect arg values.
+
+        Test cases parametrized by the argument name, the wrong value, and the
+        expected value.
+        """
+        cmdline = str(self.Cmdline(value_override={arg: value}))
+        result, output = self.perform_check(
+            capsys,
+            read_effects=[cmdline],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            FAIL -- Cmdline arguments
+                    Expected arg {arg} to be {expected} but found {value}
+            """
+        )
+        assert result is CheckState.FAILED
+
+    @pytest.mark.parametrize(
+        "arg",
+        [
+            "nosoftlockup",
+            "isolcpus",
+            "nohz_full",
+            "irqaffinity",
+            "hugepages",
+            "nohz",
+            "skew_tick",
+            "intel_pstate",
+            "tsc",
+            "hugepagesz",
+            "default_hugepagesz",
+        ],
+    )
+    def test_missing_values(self, capsys, is_amazon_linux, arg):
+        """Test the failure cases for missing arguments."""
+        cmdline = str(self.Cmdline(missing_flags=[arg]))
+        result, output = self.perform_check(
+            capsys,
+            read_effects=[cmdline],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            FAIL -- Cmdline arguments
+                    Expected arg {arg} not found in cmdline
+            """
+        )
+        assert result is CheckState.FAILED
+
+    @pytest.mark.parametrize(
+        "arg,value",
+        [
+            ("nohz_full", "0"),
+            ("isolcpus", "0"),
+            ("rcu_nocbs", "0"),
+        ],
+    )
+    def test_non_matching_isolated_cpus(
+        self, capsys, is_amazon_linux, arg, value
+    ):
+        """
+        Test the failure case for non-matching isolated CPUs.
+
+        For each of the args that should have isolated CPUs 2-3, test the case
+        where the isolated CPUs are not this.
+        """
+        cmdline = self.Cmdline(value_override={arg: value})
+        result, output = self.perform_check(
+            capsys,
+            read_effects=[str(cmdline)],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            FAIL -- Cmdline arguments
+                    Expected nohz_full, isolcpus and rcu_nocbs to all be the same, but found nohz_full={cmdline.values['nohz_full']}, isolcpus={cmdline.values['isolcpus']}, rcu_nocbs={cmdline.values['rcu_nocbs']}
+            """
+        )
+        assert result is CheckState.FAILED
+
+    def test_overlapping_isolcpus_and_irqaffinity(
+        self, capsys, is_amazon_linux
+    ):
+        """Test the failure case for overlapping isolcpus and irqaffinity."""
+        cmdline = self.Cmdline(
+            value_override={"isolcpus": "2-3", "irqaffinity": "0-3"}
+        )
+        result, output = self.perform_check(
+            capsys,
+            read_effects=[str(cmdline)],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            FAIL -- Cmdline arguments
+                    Expected isolcpus and irqaffinity to be disjoint, but found isolcpus={cmdline.values['isolcpus']} and irqaffinity={cmdline.values['irqaffinity']}
+            """
+        )
+        assert result is CheckState.FAILED
+
+    def test_not_enough_isolated_cores(self, capsys, is_amazon_linux):
+        """Test the failure case for not enough isolated cores."""
+        cmdline = self.Cmdline(
+            value_override={
+                "isolcpus": "2",
+                "nohz_full": "2",
+                "rcu_nocbs": "2",
+            }
+        )
+        result, output = self.perform_check(
+            capsys,
+            read_effects=[str(cmdline)],
+        )
+        assert textwrap.dedent(output) == textwrap.dedent(
+            f"""\
+            FAIL -- Cmdline arguments
+                    At least 2 isolated cores are required
+            """
+        )
+        assert result is CheckState.FAILED
+
+
+class TestIsAL2023:
+    """Class to test the detection of AL2023 operating system."""
+
+    @pytest.fixture(autouse=True)
+    def cleanup(self):
+        host_check._is_amazon_linux_cache = None
+        yield
+        host_check._is_amazon_linux_cache = None
+
+    @pytest.mark.no_is_amazon_linux_mock
+    def test_true(self):
+        """Test the case where the CPE file is found and matches AL2023."""
+        with mock.patch("pathlib.Path.exists") as mock_exists:
+            with mock.patch("pathlib.Path.read_text") as mock_read:
+                mock_exists.return_value = True
+                mock_read.return_value = "cpe:2.3:o:cisco:cisco_linux:2023:foo"
+                assert not host_check.is_amazon_linux()
+
+    @pytest.mark.no_is_amazon_linux_mock
+    def test_false(self):
+        """
+        Test the case where the CPE file is found and does not match AL2023.
+
+        """
+        with mock.patch("pathlib.Path.exists") as mock_exists:
+            with mock.patch("pathlib.Path.read_text") as mock_read:
+                mock_exists.return_value = True
+                mock_read.return_value = "cpe:2.3:o:cisco:cisco_linux:2023:foo"
+                assert not host_check.is_amazon_linux()
+
+    @pytest.mark.no_is_amazon_linux_mock
+    def test_not_found(self):
+        """Test the case where the CPE file is not found."""
+        with mock.patch("pathlib.Path.exists") as mock_exists:
+            mock_exists.return_value = False
+            assert not host_check.is_amazon_linux()

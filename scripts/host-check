@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2020-2023 Cisco Systems Inc.
+# Copyright 2020-2024 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ import shlex
 import subprocess
 import textwrap
 from dataclasses import dataclass
+from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -97,6 +98,8 @@ BOLD_STYLE = 1
 
 REQUIRED_CGROUP_MOUNTS = ["systemd", "memory", "pids", "cpu", "cpuset"]
 
+AMAZON_LINUX_CPE_RGX = r"^cpe:.*:o:amazon:amazon_linux"
+
 DASHED_LINE = "----------------------------------------------------------------------------"
 DOUBLE_DASHED_LINE = "============================================================================"
 
@@ -111,6 +114,9 @@ MODULE_EXPECTED_PARAMS = {
         "intr_mode": ["msix", "(null)"],
     },
 }
+
+# Global variable for caching result of check of base OS for Amazon Linux.
+_is_amazon_linux_cache = None
 
 # -----------------------------------------------------------------------------
 # Colours
@@ -314,6 +320,23 @@ def _get_cgroup_version() -> int:
         raise Exception("Unable to detect cgroup version in use")
 
 
+def is_amazon_linux() -> bool:
+    """Detect if the host is running Amazon Linux."""
+    global _is_amazon_linux_cache
+
+    if _is_amazon_linux_cache is not None:
+        return _is_amazon_linux_cache
+
+    cpe_path = Path("/etc/system-release-cpe")
+    _is_amazon_linux_cache = False
+    if cpe_path.exists():
+        cpe = cpe_path.read_text(encoding="utf-8").strip()
+        if re.match(AMAZON_LINUX_CPE_RGX, cpe):
+            _is_amazon_linux_cache = True
+
+    return _is_amazon_linux_cache
+
+
 # -----------------------------------------------------------------------------
 # Checks
 # -----------------------------------------------------------------------------
@@ -476,30 +499,27 @@ def check_cgroups() -> CheckFuncReturn:
             "contain cgroup v1 mounts.",
         )
 
-    if version == 2:
-        return (
-            CheckState.NEUTRAL,
-            "Cgroups v2 is in use - this is not supported for production environments.",
-        )
-    assert version == 1
+    assert version in (1, 2)
 
-    not_exist_mounts = [
-        cgrp_dir
-        for cgrp_dir in REQUIRED_CGROUP_MOUNTS
-        if not _mount_exists(f"/sys/fs/cgroup/{cgrp_dir}", type_="cgroup")
-    ]
-    if not_exist_mounts:
-        fail_msg = (
-            f"These cgroup mounts do not exist on the host: {', '.join(not_exist_mounts)}."
-            "\nThese mounts are required to run XRd."
-        )
-        if "systemd" in not_exist_mounts:
-            fail_msg += (
-                "\nIf your distro doesn't use systemd, manually add the systemd cgroup mount with:"
-                "\n    sudo mkdir /sys/fs/cgroup/systemd"
-                "\n    sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd"
+    if version == 1:
+        not_exist_mounts = [
+            cgrp_dir
+            for cgrp_dir in REQUIRED_CGROUP_MOUNTS
+            if not _mount_exists(f"/sys/fs/cgroup/{cgrp_dir}", type_="cgroup")
+        ]
+        if not_exist_mounts:
+            fail_msg = (
+                f"These cgroup mounts do not exist on the host: {', '.join(not_exist_mounts)}."
+                "\nThese mounts are required to run XRd."
             )
-        return CheckState.FAILED, fail_msg
+            if "systemd" in not_exist_mounts:
+                fail_msg += (
+                    "\nIf your distro doesn't use systemd, manually add the systemd cgroup mount with:"
+                    "\n    sudo mkdir /sys/fs/cgroup/systemd"
+                    "\n    sudo mount -t cgroup -o none,name=systemd cgroup /sys/fs/cgroup/systemd"
+                )
+            return CheckState.FAILED, fail_msg
+
     return CheckState.SUCCESS, f"v{version}"
 
 
@@ -1033,6 +1053,21 @@ def check_interface_kernel_driver() -> CheckFuncReturn:
     installed_not_supported_str = ", ".join(
         driver.name for driver in installed_not_supported
     )
+    # In AWS, must have igb_uio driver available
+    if is_amazon_linux():
+        if "igb_uio" in supported_str:
+            return CheckState.SUCCESS, f"Loaded PCI drivers: {supported_str}"
+        elif "igb_uio" in installed_not_supported_str:
+            return (
+                CheckState.NEUTRAL,
+                "igb_uio driver is installed but not loaded.\n"
+                "Run 'modprobe igb_uio' to load the driver.",
+            )
+        else:
+            return (
+                CheckState.FAILED,
+                "The igb_uio PCI driver is not loaded or installed.",
+            )
     if supported_drivers:
         if installed_not_supported:
             return (
@@ -1064,6 +1099,10 @@ def check_iommu() -> CheckFuncReturn:
     """Check IOMMU is set up correctly for the vfio-pci kernel module."""
     if not PCIDriver("vfio-pci").is_supported():
         return CheckState.NEUTRAL, "vfio-pci driver unavailable"
+
+    # In AWS unconditonally succeed as IOMMU cannot be supported.
+    if is_amazon_linux():
+        return CheckState.NEUTRAL, "IOMMU is not supported in AWS."
 
     # If igb_uio is supported, treat warnings as info, because even though
     # IOMMU isn't enabled, igb_uio can be used.
@@ -1495,6 +1534,113 @@ def check_bridge_iptables() -> CheckFuncReturn:
     return CheckState.SUCCESS, "disabled"
 
 
+# -------------------------------------
+# AWS checks
+# -------------------------------------
+
+
+def check_aws_cmdline() -> CheckFuncReturn:
+    """Check that the expected args are in the cmdline."""
+
+    # Expected values are as set during AMI creation by the XRd packer tool.
+    # See https://github.com/ios-xr/xrd-packer
+
+    with open("/proc/cmdline", "r", encoding="utf-8") as f:
+        cmdline = f.read().strip().split()
+
+    cmdline_args = {k: v for k, _, v in (x.partition("=") for x in cmdline)}
+
+    # Check the args with known expected values
+    expected_arg_values = {
+        "nohz": "on",
+        "skew_tick": "1",
+        "intel_pstate": "disable",
+        "tsc": "reliable",
+        "nosoftlockup": "",
+        "hugepagesz": "1G",
+        "default_hugepagesz": "1G",
+    }
+    for arg, expected_value in expected_arg_values.items():
+        if arg not in cmdline_args:
+            return (
+                CheckState.FAILED,
+                f"Expected arg {arg} not found in cmdline",
+            )
+        if expected_value and cmdline_args[arg] != expected_value:
+            return (
+                CheckState.FAILED,
+                f"Expected arg {arg} to be {expected_value} but found "
+                f"{cmdline_args[arg]}",
+            )
+
+    # Check isolated cores-related args
+    for arg in ["nohz_full", "isolcpus", "rcu_nocbs"]:
+        if arg not in cmdline_args:
+            return (
+                CheckState.FAILED,
+                f"Expected arg {arg} not found in cmdline",
+            )
+    if (
+        cmdline_args["nohz_full"] != cmdline_args["isolcpus"]
+        or cmdline_args["nohz_full"] != cmdline_args["rcu_nocbs"]
+        or cmdline_args["isolcpus"] != cmdline_args["rcu_nocbs"]
+    ):
+        return (
+            CheckState.FAILED,
+            "Expected nohz_full, isolcpus and rcu_nocbs to all be the same, "
+            f"but found nohz_full={cmdline_args['nohz_full']}, isolcpus="
+            f"{cmdline_args['isolcpus']}, rcu_nocbs="
+            f"{cmdline_args['rcu_nocbs']}",
+        )
+
+    # Check other args with unknown expected values
+    for arg in ["irqaffinity", "hugepages"]:
+        if arg not in cmdline_args:
+            return (
+                CheckState.FAILED,
+                f"Expected arg {arg} not found in cmdline",
+            )
+
+    # Check the isolated and irqaffinity cores do not overlap
+    isolated_with_range = cmdline_args["isolcpus"].split(",")
+    isolated_cores = set()
+    for c in isolated_with_range:
+        if "-" in c:
+            start, end = c.split("-")
+            for i in range(int(start), int(end) + 1):
+                isolated_cores.add(i)
+        else:
+            isolated_cores.add(int(c))
+    irqaffinity_with_range = cmdline_args["irqaffinity"].split(",")
+    irqaffinity = set()
+    for c in irqaffinity_with_range:
+        if "-" in c:
+            start, end = c.split("-")
+            for i in range(int(start), int(end) + 1):
+                irqaffinity.add(i)
+        else:
+            irqaffinity.add(int(c))
+    if isolated_cores & irqaffinity:
+        return (
+            CheckState.FAILED,
+            "Expected isolcpus and irqaffinity to be disjoint, but found "
+            f"isolcpus={cmdline_args['isolcpus']} and "
+            f"irqaffinity={cmdline_args['irqaffinity']}",
+        )
+
+    if len(isolated_cores) < MIN_CPU_CORES_AVAILABLE:
+        return (
+            CheckState.FAILED,
+            "At least 2 isolated cores are required",
+        )
+
+    return (
+        CheckState.SUCCESS,
+        "Expected cmdline args found with isolated cores "
+        f"{cmdline_args['isolcpus']}",
+    )
+
+
 class Check(NamedTuple):
     """A check for some host capability."""
 
@@ -1560,6 +1706,12 @@ XR_COMPOSE_CHECKS = [
     Check("Bridge iptables", check_bridge_iptables, []),
 ]
 
+CONTROL_PLANE_AWS_CHECKS: List[Check] = []
+
+VROUTER_AWS_CHECKS = [
+    Check("Cmdline arguments", check_aws_cmdline, []),
+]
+
 PLATFORM_CHECKS_MAP: Mapping[str, List[Check]] = {
     "xrd-control-plane": CONTROL_PLANE_CHECKS,
     "xrd-vrouter": VROUTER_CHECKS,
@@ -1567,6 +1719,10 @@ PLATFORM_CHECKS_MAP: Mapping[str, List[Check]] = {
 EXTRA_CHECKS_MAP: Mapping[str, List[Check]] = {
     "docker": DOCKER_CHECKS,
     "xr-compose": XR_COMPOSE_CHECKS,
+}
+PLATFORM_AWS_CHECKS_MAP: Mapping[str, List[Check]] = {
+    "xrd-control-plane-aws": CONTROL_PLANE_AWS_CHECKS,
+    "xrd-vrouter-aws": VROUTER_AWS_CHECKS,
 }
 
 # -----------------------------------------------------------------------------
@@ -1735,10 +1891,17 @@ def run_checks_specific_platform(
     """
 
     print_heading(f"Platform checks - {platform}")
-    plat_results = perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform])
-    plat_failure = any(check.is_failure() for check in plat_results.values())
-    plat_error = any(c is CheckState.ERROR for c in plat_results.values())
-    plat_warning = any(c is CheckState.WARNING for c in plat_results.values())
+    plat_results = list(
+        perform_checks(BASE_CHECKS + PLATFORM_CHECKS_MAP[platform]).values(),
+    )
+    # If Amazon Linux is detected, run AWS host checks
+    if is_amazon_linux() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
+        print_subheading("AWS host checks")
+        al_results = perform_checks(PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"])
+        plat_results += list(al_results.values())
+    plat_failure = any(check.is_failure() for check in plat_results)
+    plat_error = any(c is CheckState.ERROR for c in plat_results)
+    plat_warning = any(c is CheckState.WARNING for c in plat_results)
 
     extra_results = run_if_extra_checks(extra_checks)
 
@@ -1798,6 +1961,13 @@ def run_checks_all_platforms(extra_checks: List[str]) -> int:
         base_and_plat_results = list(base_results.values()) + list(
             plat_results.values()
         )
+        # If Amazon Linux is detected, run AWS host checks
+        if is_amazon_linux() and PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]:
+            print_subheading(f"AWS host checks for {platform}")
+            al_results = perform_checks(
+                PLATFORM_AWS_CHECKS_MAP[f"{platform}-aws"]
+            )
+            base_and_plat_results += list(al_results.values())
         if any(result.is_failure() for result in base_and_plat_results):
             platforms_not_supported.add(platform)
         elif any(

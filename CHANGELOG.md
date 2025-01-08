@@ -5,6 +5,12 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.1.18 (2024-12-17)
+
+- Added detection of Amazon Linux host OS.
+- Added additional checks of cmdline arguments when on Amazon Linux
+- Cgroups v2 is now supported
+
 ### v1.1.17 (2024-06-11)
 
 - Fixed entry-point in `host-check` Dockerfile.
