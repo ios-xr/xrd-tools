@@ -5,7 +5,7 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
-### v1.1.19 (2025-04/22)
+### v1.1.19 (2025-04-22)
 
 - Added Dockerfile.host-check to the release tarball
 
