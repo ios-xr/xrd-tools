@@ -28,17 +28,21 @@ Create a new XRd image with bugfixes installed on top of a base image.
 
 Required arguments:
   IMAGE            Loaded container image to install bugfixes on top of
-  SOURCE           Bugfix source to install from. This can be:
-                    - an rpm
-                    - a directory containing rpms
-                    - a tarball containing rpms
+  SOURCE           Path to source to install packages from - a directory
+                   or tarball containing the rpm(s) to install.
 
 Optional arguments:
   --new-packages   Install new packages if included in the bugfix source. By
                    default, only packages that are already installed in the
                    base image will be updated, so this should be passed if
                    any new packages are present in SOURCE.
-  ...              Additional args passed through to 'docker build'
+  ...              Additional args passed through to 'docker build' (such as
+                   --tag).
+
+Example invocations:
+  $(basename "$0") ios-xr/xrd-vrouter:25.1.1 /path/to/bugfixes.tar.gz --tag bugfix
+  $(basename "$0") ios-xr/xrd-vrouter:25.1.1 /path/to/rpm-dir/ --tag bugfix
+
 "
 }
 
