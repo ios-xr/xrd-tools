@@ -70,16 +70,24 @@ Minor version bumps may introduce incompatibilities with previous invocations as
 
 ## Apply Bugfixes
 XRd has a different workflow to other XR platforms for installing bugfixes.
-Instead of applying bugfixes to a running instance via XR CLI, a docker build is used to install bugfixes/new packages against an existing XRd image, creating a new docker image with the bugfixes.
 
-The `apply-bugfixes` script (in this repo) provides a user friendly wrapper for doing this:
+Instead of applying bugfixes to a running instance via XR CLI, a container build is used to install bugfixes/new packages against an existing XRd image, creating a new docker image with the bugfixes.
+
+The user then stops any instances of XRd that are using the old image, and starts new instances using the new updated image.
+
+The `apply-bugfixes` script (in this repo) provides a user friendly wrapper for doing the building of the new image.
+
+It has the following dependencies:
+- docker build
+
+And is used as follows:
 ```
 Usage: apply-bugfixes [-h|--help] [--new-packages] IMAGE SOURCE ...
 
 Create a new XRd image with bugfixes installed on top of a base image.
 
 Required arguments:
-  IMAGE            Loaded container image to install bugfixes on top of
+  IMAGE            Loaded container image to install bugfixes on top of.
   SOURCE           Path to source to install packages from - a directory
                    or tarball containing the rpm(s) to install.
 
@@ -93,11 +101,11 @@ Optional arguments:
 ```
 
 Example workflow to install a bugfix:
-- Load XRd image into image repo (e.g. `ios-xr/xrd-vrouter:25.1.1`)
+- Load XRd image into image repo (e.g. `ios-xr/xrd-vrouter:25.1.1`).
 - Run apply-bugfixes, passing the image repo name/tag, pointer to the bugfix tarball/dir, optionally specify a tag for the newly created image:
   - `apply-bugfixes ios-xr/xrd-vrouter:25.1.1 /path/to/bugfixes.tar.gz --tag bugfixes`
-- Now launch XRd using the newly created image 
-
+- Stop any XRd instances using the old image.
+- Launch new instances of XRd using the updated image, with previous set of launch arguments and volumes.
 
 ## Contributing
 
