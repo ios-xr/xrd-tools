@@ -70,7 +70,7 @@ Minor version bumps may introduce incompatibilities with previous invocations as
 
 ## Apply Bugfixes
 XRd has a different workflow to other XR platforms for installing bugfixes.
-Instead of applying bugfixes to a running instance via XR CLI, instead a docker build is used to install bugfixes or new packages against an existing XRd image, creating a new docker image with the bugfixes.
+Instead of applying bugfixes to a running instance via XR CLI, a docker build is used to install bugfixes/new packages against an existing XRd image, creating a new docker image with the bugfixes.
 
 The `apply-bugfixes` script (in this repo) provides a user friendly wrapper for doing this:
 ```
