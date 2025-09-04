@@ -92,10 +92,10 @@ Optional arguments:
                    --tag).
 ```
 
-Example workflow:
+Example workflow to install a bugfix:
 - Load XRd image into image repo (e.g. `ios-xr/xrd-vrouter:25.1.1`)
 - Run apply-bugfixes, passing the image repo name/tag, pointer to the bugfix tarball/dir, optionally specify a tag for the newly created image:
-  - `apply-bugfixes ios-xr/xrd-vrouter:25.1.1 /path/to/bugfixes.tar.gz --tag bugfixes
+  - `apply-bugfixes ios-xr/xrd-vrouter:25.1.1 /path/to/bugfixes.tar.gz --tag bugfixes`
 - Now launch XRd using the newly created image 
 
 
