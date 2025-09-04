@@ -74,6 +74,8 @@ Instead of applying bugfixes to a running instance via XR CLI, instead a docker 
 
 The `apply-bugfixes` script (in this repo) provides a user friendly wrapper for doing this:
 ```
+Usage: apply-bugfixes [-h|--help] [--new-packages] IMAGE SOURCE ...
+
 Create a new XRd image with bugfixes installed on top of a base image.
 
 Required arguments:
