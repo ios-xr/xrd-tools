@@ -34,10 +34,10 @@ Accompanying documentation is coming soon.
 
 Check the usage of the scripts by passing `--help`.
 
+* `apply-bugfixes` - Create a new XRd image with bugfixes installed on top of a base image (see [Apply Bugfixes](#apply-bugfixes) for more details)
 * `host-check` - Check the host is set up correctly for running XRd containers.
 * `launch-xrd` - Launch a single XRd container, or use `--dry-run` to see the args required.
 * `xr-compose` - Launch a topology of XRd containers (wraps `docker-compose`).
-* `apply-bugfixes` - Create a new XRd image with bugfixes installed on top of a base image.
 
 ### `samples/`
 
@@ -67,6 +67,34 @@ Major version bumps are avoided as much as possible since we want to maintain ba
 An example of a breaking change requiring a major version bump would be dropping support for an old XR release version, however this should not be a common occurrence (we aim to maintain compatibility of at least 3 release versions at a time).
 
 Minor version bumps may introduce incompatibilities with previous invocations as long as these are documented in [version-compatibility.md](docs/version-compatibility.md), and as long as there's still a way to tweak the invocation to work with the same range of XR releases.
+
+## Apply Bugfixes
+XRd has a different workflow to other XR platforms for installing bugfixes.
+Instead of applying bugfixes to a running instance via XR CLI, instead a docker build is used to install bugfixes or new packages against an existing XRd image, creating a new docker image with the bugfixes.
+
+The `apply-bugfixes` script (in this repo) provides a user friendly wrapper for doing this:
+```
+Create a new XRd image with bugfixes installed on top of a base image.
+
+Required arguments:
+  IMAGE            Loaded container image to install bugfixes on top of
+  SOURCE           Path to source to install packages from - a directory
+                   or tarball containing the rpm(s) to install.
+
+Optional arguments:
+  --new-packages   Install new packages if included in the bugfix source. By
+                   default, only packages that are already installed in the
+                   base image will be updated, so this should be passed if
+                   any new packages are present in SOURCE.
+  ...              Additional args passed through to 'docker build' (such as
+                   --tag).
+```
+
+Example workflow:
+- Load XRd image into image repo (e.g. `ios-xr/xrd-vrouter:25.1.1`)
+- Run apply-bugfixes, passing the image repo name/tag, pointer to the bugfix tarball/dir, optionally specify a tag for the newly created image:
+  - `apply-bugfixes ios-xr/xrd-vrouter:25.1.1 /path/to/bugfixes.tar.gz --tag bugfixes
+- Now launch XRd using the newly created image 
 
 
 ## Contributing
