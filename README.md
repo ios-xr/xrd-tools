@@ -23,8 +23,9 @@ XRd is only able to run on Linux, therefore the scripts provided here are also t
 The scripts are implemented in bash and python3, which must therefore be found on `PATH`.
 All active versions of python3 are supported.
 
-The `xr-compose` script also requires `docker-compose` (v1) to be on `PATH` and for the `PyYAML` python package be installed (e.g. in an active virtual environment).
-
+The following scripts have additional dependencies on top of the above:
+- `xr-compose`: also requires `docker-compose` (v1) to be on `PATH` and for the `PyYAML` python package be installed (e.g. in an active virtual environment).
+- `apply-bugfixes`: also requires `docker build`
 
 ## Repo Contents
 
@@ -71,14 +72,11 @@ Minor version bumps may introduce incompatibilities with previous invocations as
 ## Apply Bugfixes
 XRd has a different workflow to other XR platforms for installing bugfixes.
 
-Instead of applying bugfixes to a running instance via XR CLI, a container build is used to install bugfixes/new packages against an existing XRd image, creating a new docker image with the bugfixes.
+Instead of applying bugfixes to a running instance via XR CLI, a container build is used to install bugfixes/new packages against an existing XRd image, creating a new container image with the bugfixes.
 
 The user then stops any instances of XRd that are using the old image, and starts new instances using the new updated image.
 
 The `apply-bugfixes` script (in this repo) provides a user friendly wrapper for doing the building of the new image.
-
-It has the following dependencies:
-- docker build
 
 And is used as follows:
 ```
