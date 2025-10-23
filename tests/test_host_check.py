@@ -1901,7 +1901,7 @@ class TestLSMs(_CheckTestBase):
             """
         )
         result, output = self.perform_check(
-            capsys, read_effects=["some_profiles", FileNotFoundError]
+            capsys, read_effects=["rsyslogd (enforce)", FileNotFoundError]
         )
         assert textwrap.dedent(output) == expected
         assert result is CheckState.FAILED
