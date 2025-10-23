@@ -165,6 +165,18 @@ def purple(string: str) -> str:
 _CMD = Union[str, List[str]]
 
 
+class AppArmorStatus(enum.Enum):
+    """
+    An Enum class to indicate the status of AppArmor and the `xrd-unconfined`
+    profile from the check.
+
+    """
+
+    DISABLED = enum.auto()
+    NO_PROFILE = enum.auto()
+    ENABLED_WITH_PROFILE = enum.auto()
+
+
 class CmdTimeoutError(Exception):
     """
     This is so that command timeouts can be handled separately to other
@@ -617,19 +629,29 @@ def check_userspace_aslr() -> CheckFuncReturn:
     return CheckState.SUCCESS, "full randomization"
 
 
-def _apparmor_is_enabled() -> bool:
-    """True if AppArmor is enabled."""
+def _apparmor_and_profle_enabled() -> AppArmorStatus:
+    """Check the state of AppArmor and the `xrd-unconfined` profile"""
     try:
         with open(
             "/sys/kernel/security/apparmor/profiles", encoding="utf-8"
         ) as f:
             contents = f.read()
     except FileNotFoundError:
-        # If the file is not found apparmor is not installed.
-        return False
+        # If the file is not found, AppArmor is not installed.
+        return AppArmorStatus.DISABLED
 
-    # If the file is not empty apparmor is running.
-    return contents != ""
+    # If the file is not empty, AppArmor is running and the file contains a
+    # list of the loaded profiles. Verify that the `xrd-unconfined` profile
+    # is present.
+    if contents != "":
+        if "xrd-unconfined" in contents:
+            return AppArmorStatus.ENABLED_WITH_PROFILE
+        else:
+            return AppArmorStatus.NO_PROFILE
+    else:
+        # In this case, AppArmor is installed but not running on the
+        # system.
+        return AppArmorStatus.DISABLED
 
 
 def _selinux_is_enabled() -> bool:
@@ -638,9 +660,12 @@ def _selinux_is_enabled() -> bool:
         with open("/etc/selinux/config", encoding="utf-8") as f:
             contents = f.read()
     except FileNotFoundError:
-        # If the file is not found selinux is not installed.
+        # If the file is not found, selinux is not installed.
         return False
 
+    # If the file exists with SELINUX=enforcing, return True. Otherwise if
+    # SELINUX=enforcing is not present, that could be because it is either
+    # in permissive mode or disabled mode, hence return False.
     return "SELINUX=enforcing" in contents.splitlines()
 
 
@@ -649,19 +674,28 @@ def check_linux_security_modules() -> CheckFuncReturn:
     msgs = []
     ch_state = CheckState.NEUTRAL
 
-    if _apparmor_is_enabled():
+    apparmor_status = _apparmor_and_profle_enabled()
+
+    if apparmor_status == AppArmorStatus.ENABLED_WITH_PROFILE:
         msgs.append(
-            "AppArmor is enabled. XRd is currently unable to run with the\n"
-            "default docker profile, but can be run with\n"
-            "'--security-opt apparmor=unconfined' or equivalent.\n"
-            "However, some features might not work, such as ZTP."
+            "AppArmor is running with the recommended `xrd-unconfined` profile.\n"
+            "XRd is able to run under this profile by running with '--security-opt\n"
+            "apparmor=xrd-unconfined', however this is not supported when launching\n"
+            "the container in privileged mode."
         )
-        ch_state = CheckState.WARNING
+    elif apparmor_status == AppArmorStatus.NO_PROFILE:
+        msgs.append(
+            "AppArmor is running on this system but the `xrd-unconfined` profile is\n"
+            "not installed / loaded. XRd is unable to run as expected without this\n"
+            "profile in place, so please follow the steps from the README.md file\n"
+            "at https://github.com/ios-xr/xrd-tools to install and enable the profile."
+        )
+        ch_state = CheckState.FAILED
     if _selinux_is_enabled():
         msgs.append(
-            "SELinux is enabled. XRd is currently unable to run with the\n"
-            "default policy, but can be run with\n"
-            "'--security-opt label=disable' or equivalent."
+            "SELinux is enabled and enforced. XRd is currently unable to run with the\n"
+            "default policy, but can be run with '--security-opt label=disable' or\n"
+            "equivalent."
         )
 
     if not msgs:

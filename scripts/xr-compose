@@ -123,6 +123,12 @@ class Error(Exception):
     """
 
 
+class LaunchException(Exception):
+    """
+    Raised when an exception is hit during launch
+    """
+
+
 class InputDoesNotExistError(Error):
     """
     The input file does not exist.
@@ -1640,6 +1646,16 @@ class XRCompose:
 
         if service_yaml.get("privileged", self.privileged):
             service_yaml["privileged"] = True
+            # Please note that launching XRd on AppArmor-enabled hosts in
+            # privileged mode is not currently supported. It is not guaranteed
+            # that the provided  profile will be correctly applied in this
+            # case- see  https://github.com/moby/moby/issues/51242 for more
+            # information. The apparmor profile is being set here still for the
+            # benefit of podman, which does not have the aforementioned
+            # limitation.
+            service_yaml.setdefault("security_opt", []).extend(
+                ["apparmor=xrd-unconfined"]
+            )
         else:
             service_yaml["cap_drop"] = ["all"]
             service_yaml.setdefault("cap_add", []).extend(
@@ -1666,10 +1682,14 @@ class XRCompose:
                     "IPC_LOCK",
                 ]
             )
-            # AppArmor and SELinux are not supported with the default docker
-            # profiles.
+            # AppArmor is only supported for XRd with the xrd-unconfined
+            # profile (see README.md for instructions on how to install).
+            # SELinux is not supported for XRd with default docker profiles, so
+            # we must pass label=disable.
+            # Ok to unconditionally pass these arguments, as docker will ignore
+            # them if apparmor/SELinux not enabled.
             service_yaml.setdefault("security_opt", []).extend(
-                ["apparmor=unconfined", "label=disable"]
+                ["apparmor=xrd-unconfined", "label=disable"]
             )
             service_yaml.setdefault("devices", []).extend(
                 ["/dev/fuse", "/dev/net/tun"]
@@ -2018,7 +2038,10 @@ def main(argv: List[str]) -> None:
     xr_compose.generate()
 
     if args.launch:
-        xr_compose.launch()
+        try:
+            xr_compose.launch()
+        except Exception as lexc:
+            raise LaunchException from lexc
 
 
 if __name__ == "__main__":
@@ -2027,6 +2050,16 @@ if __name__ == "__main__":
     except Error as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
+    except LaunchException as exc:
+        print(
+            f"ERROR: Unexpected exception during launch: {exc}",
+            file=sys.stderr,
+        )
+        print(
+            "HINT: Run 'host-check' to verfiy that everything was setup correctly.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
     except Exception as exc:
         print(f"ERROR: Unexpected exception: {exc}", file=sys.stderr)
         sys.exit(2)

@@ -27,9 +27,17 @@ The following scripts have additional dependencies on top of the above:
 - `xr-compose`: also requires `docker-compose` (v1) to be on `PATH` and for the `PyYAML` python package be installed (e.g. in an active virtual environment).
 - `apply-bugfixes`: also requires `docker build`
 
+Further note that for AppArmor enabled systems you **must** have the `xrd-unconfined` profile intalled and enabled. 
+See [AppArmor](#apparmor) for more information.
+
 ## Repo Contents
 
 Accompanying documentation is coming soon.
+
+### `profiles/`
+
+Contains the AppArmor profile `xrd-unconfined` required to run XRd on Ubuntu
+systems with AppArmor enabled. See [AppArmor](#apparmor) for more details.
 
 ### `scripts/`
 
@@ -105,8 +113,60 @@ Example workflow to install a bugfix:
 - Stop any XRd instances using the old image.
 - Launch new instances of XRd using the updated image, with previous set of launch arguments and volumes.
 
+## AppArmor
+
+XRd is able to run on AppArmor-enabled Ubuntu environments only if the `xrd-unconfined` AppArmor profile is installed and enabled. 
+`launch-xrd` and `xr-compose` tools specifically also require this profile to be installed.
+To install and enable the profile, follow these steps:
+- Copy the profile to the correct location on the host using `cp xrd-tools/profiles/xrd-unconfined
+  /etc/apparmor.d/xrd-unconfined`
+- Activate the AppArmor profile on the host by running `apparmor_parser -r
+  /etc/apparmor.d/xrd-unconfined`
+
+### Known Limitations
+Running XRd in privileged mode on AppArmor-enabled hosts under `docker` is not supported. 
+The container may launch successfully upon first boot, but it is not guaranteed that the `xrd-unconfined` profile will be maintained upon `restart` or `stop` / `start`. For more information, please see 
+the issue raised [here](https://github.com/moby/moby/issues/51242).
+
+**Please note that `podman` does not have this limitation**.
+
 ## Contributing
 
 Thanks for considering contributing to the project!
 
 Check out the repo's [open issues](https://github.com/ios-xr/xrd-tools/issues) or see [CONTRIBUTING.md](CONTRIBUTING.md) for more contributing guidelines.
+
+## Troubleshooting Common Errors
+
+Q: **I ran `launch-xrd` and I get the below error, what is the issue?**
+```
+docker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to apply apparmor profile: apparmor failed to apply profile: write /proc/thread-self/attr/apparmor/exec: no such file or directory: unknown.
+HINT: Run 'host-check' to verify that everything was setup correctly.
+```
+
+A: This means you do not have the `xrd-unconfined` AppArmor profile installed.
+See the [AppArmor](#apparmor) section for information on how to install and
+load the profile. 
+
+Q. **I ran `xr-compose` to create a yml, passed it to `docker-compose` OR used
+the `-l` option and I got the below error, what is the issue?**
+
+```
+Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to apply apparmor profile: apparmor failed to apply profile: write /proc/thread-self/attr/apparmor/exec: no such file or directory: unknown
+ERROR: Unexpected exception: Command '['docker-compose', '-f', 'docker-compose.yml', 'up', '-d']' returned non-zero exit status 1.
+HINT: Run 'host-check' to verify that everything was setup correctly.
+```
+
+A: This means you do not have the `xrd-unconfined` AppArmor profile installed.
+See the [AppArmor](#apparmor) section for information on how to install and
+load the profile. 
+
+Q: **I ran `launch-xrd` specifically with `podman` and I get the below error,
+what is the issue?**
+```
+Error: preparing container xxxxx for attach: AppArmor profile "xrd-unconfined" specified but not loaded
+```
+
+A: This means you do not have the `xrd-unconfined` AppArmor profile installed.
+See the [AppArmor](#apparmor) section for information on how to install and
+load the profile. 

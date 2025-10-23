@@ -384,6 +384,13 @@ fi
 
 if [[ $IS_PRIVILEGED == 1 ]]; then
     caps_args+=("--privileged")
+    # Please note that launching XRd on AppArmor-enabled hosts in privileged
+    # mode is not currently supported. It is not guaranteed that the provided
+    # profile will be correctly applied in this case- see
+    # (https://github.com/moby/moby/issues/51242) for more information. The
+    # apparmor profile is being set here still for the benefit of podman, which
+    # does not have the aforementioned limitation.
+    misc_args+=("--security-opt" "apparmor=xrd-unconfined")
 else
     # Unprivileged requires explicit list of capabilities.
     caps_args+=(
@@ -414,8 +421,13 @@ else
     misc_args+=(
         "--device" "/dev/fuse"
         "--device" "/dev/net/tun"
-        # AppArmor and SELinux are not supported with the default profiles.
-        "--security-opt" "apparmor=unconfined"
+        # AppArmor is only supported for XRd with the xrd-unconfined profile
+        # (see README.md for instructions on how to install).
+        # SELinux is not supported for XRd with default docker profiles, so
+        # we must pass label=disable. 
+        # Ok to unconditionally pass these arguments, as docker will ignore
+        # them if apparmor/SELinux not enabled.
+        "--security-opt" "apparmor=xrd-unconfined"
         "--security-opt" "label=disable"
     )
     # Add XRd vRouter specific unprivileged arguments:
@@ -495,4 +507,16 @@ _runcmd \
         "${mount_args[@]}" \
         "${env_args[@]}" \
         "${extra_args[@]}" \
-        "${CTR_MGR_ARGS[@]}" || exit $?
+        "${CTR_MGR_ARGS[@]}"
+
+# Error code 127 is typically seen when something isn't setup correctly, e.g.
+# missing the xrd-unconfined profile on AppArmor-enabled hosts when using
+# docker. Output a hint to run host-check to help the user debug.
+
+runcmd_errcode=$?
+
+if [[ $runcmd_errcode -eq 127 ]]; then
+    echo "HINT: Run 'host-check' to verify that everything was setup correctly." >&2
+fi
+
+exit $runcmd_errcode

@@ -5,6 +5,20 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.2.0 (2025-10-07)
+
+- Added the `xrd-unconfined` AppArmor profile and instructions for how to enable it.
+- Updated `host-check` and `test_host_check` to verify that AppArmor and the
+  `xrd-unconfined` profiles are correctly installed / enabled.
+- Updated `launch-xrd` to use the `xrd-unconfined` AppArmor profile, and output
+  a helful message when the script failes due to the profile not being
+  installed.
+- Updated `xr-compose` to use the `xrd-unconfined` AppArmor profile, and output
+  a helful message when the script failes due to the profile not being
+  installed.
+- Update the `README` to include a section explaining how to install the new
+  profile, and another section on troubleshooting errors related to this.
+
 ### v1.1.20 (2025-05-09)
 
 - Updated help for apply-bugfixes
