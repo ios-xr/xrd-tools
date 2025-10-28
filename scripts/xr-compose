@@ -889,6 +889,7 @@ class XRCompose:
         mounts: Optional[List[str]] = None,
         *,
         privileged: bool = False,
+        apparmor_enabled: bool = False,
     ):
         """
         Initialise the XRCompose class.
@@ -921,6 +922,9 @@ class XRCompose:
             privileged:
                 Run in privileged mode
 
+            apparmor_enabled:
+                Run on AppArmor-enabled hosts.
+
         """
         self.topo_id = topo_id
         self.input_file = input_file if input_file else DEFAULT_INPUT
@@ -929,6 +933,7 @@ class XRCompose:
         LOGGER.debug("Output file name is %s", self.output_file)
         self.mounts = mounts if mounts else []
         self.privileged = privileged
+        self.apparmor_enabled = apparmor_enabled
 
         self.image = image
 
@@ -1646,16 +1651,18 @@ class XRCompose:
 
         if service_yaml.get("privileged", self.privileged):
             service_yaml["privileged"] = True
-            # Please note that launching XRd on AppArmor-enabled hosts in
-            # privileged mode is not currently supported. It is not guaranteed
-            # that the provided  profile will be correctly applied in this
-            # case- see  https://github.com/moby/moby/issues/51242 for more
-            # information. The apparmor profile is being set here still for the
-            # benefit of podman, which does not have the aforementioned
-            # limitation.
-            service_yaml.setdefault("security_opt", []).extend(
-                ["apparmor=xrd-unconfined"]
-            )
+            if self.apparmor_enabled:
+                # Please note that launching XRd on AppArmor-enabled hosts in
+                # privileged mode with docker is not currently supported. It is
+                # not guaranteed that the provided  profile will be correctly
+                # applied in this case- see
+                # https://github.com/moby/moby/issues/51242 for more
+                # information. The AppArmor profile is being set here still for
+                # the benefit of podman, which does not have the aforementioned
+                # limitation.
+                service_yaml.setdefault("security_opt", []).extend(
+                    ["apparmor=xrd-unconfined"]
+                )
         else:
             service_yaml["cap_drop"] = ["all"]
             service_yaml.setdefault("cap_add", []).extend(
@@ -1688,12 +1695,27 @@ class XRCompose:
             # we must pass label=disable.
             # Ok to unconditionally pass these arguments, as docker will ignore
             # them if apparmor/SELinux not enabled.
-            service_yaml.setdefault("security_opt", []).extend(
-                ["apparmor=xrd-unconfined", "label=disable"]
-            )
             service_yaml.setdefault("devices", []).extend(
                 ["/dev/fuse", "/dev/net/tun"]
             )
+            # SELinux is not supported for XRd with default docker profiles, so
+            # we must pass label=disable.
+            # Ok to unconditionally pass this argument, as docker and podman
+            # will ignore it if SELinux is not enabled.
+            if self.apparmor_enabled:
+                # When the user specifies that AppArmor is enabled, XRd is only
+                # supported on such hosts with the xrd-unconfined profile (see
+                # README.md for instructions on how to install).
+                service_yaml.setdefault("security_opt", []).extend(
+                    ["apparmor=xrd-unconfined", "label=disable"]
+                )
+            else:
+                # Ok to unconditionally pass this argument, as both docker and
+                # podman will ignore unconfined mode if apparmor is not
+                # enabled.
+                service_yaml.setdefault("security_opt", []).extend(
+                    ["apparmor=unconfined", "label=disable"]
+                )
 
     def add_service_networks(self, service: Service) -> None:
         """
@@ -2007,6 +2029,14 @@ def parse_input_args(argv: List[str]) -> argparse.Namespace:
         help="Launch in privileged mode. Privilege status of a container in "
         "the input yaml wold overwrite this",
     )
+    parser.add_argument(
+        "--apparmor-enabled",
+        action="store_true",
+        help="Launch the contianer on AppArmor-enabled hosts. If specifying "
+        "this option, follow the steps from the the README file located at "
+        "https://github.com/ios-xr/xrd-tools to install and enable the "
+        "`xrd-unconfined` AppArmor profile prior to launching the container.",
+    )
 
     return parser.parse_args(argv)
 
@@ -2032,6 +2062,7 @@ def main(argv: List[str]) -> None:
         args.image,
         args.mounts if args.mounts else None,
         privileged=args.privileged,
+        apparmor_enabled=args.apparmor_enabled,
     )
 
     # Generate output YAML from the input YAML
@@ -2053,10 +2084,6 @@ if __name__ == "__main__":
     except LaunchException as exc:
         print(
             f"ERROR: Unexpected exception during launch: {exc}",
-            file=sys.stderr,
-        )
-        print(
-            "HINT: Run 'host-check' to verfiy that everything was setup correctly.",
             file=sys.stderr,
         )
         sys.exit(2)

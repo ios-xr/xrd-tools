@@ -27,7 +27,7 @@ The following scripts have additional dependencies on top of the above:
 - `xr-compose`: also requires `docker-compose` (v1) to be on `PATH` and for the `PyYAML` python package be installed (e.g. in an active virtual environment).
 - `apply-bugfixes`: also requires `docker build`
 
-Further note that for AppArmor enabled systems you **must** have the `xrd-unconfined` profile intalled and enabled. 
+Further note that for AppArmor enabled systems you **must** have the `xrd-unconfined` profile installed and enabled. 
 See [AppArmor](#apparmor) for more information.
 
 ## Repo Contents
@@ -116,19 +116,37 @@ Example workflow to install a bugfix:
 ## AppArmor
 
 XRd is able to run on AppArmor-enabled Ubuntu environments only if the `xrd-unconfined` AppArmor profile is installed and enabled. 
-`launch-xrd` and `xr-compose` tools specifically also require this profile to be installed.
+Passing the `--apparmor-enabled` argument to `launch-xrd` and `xr-compose` will use this profile, and therefore explicitly requires it to be installed prior to launching the container. 
+
 To install and enable the profile, follow these steps:
 - Copy the profile to the correct location on the host using `cp xrd-tools/profiles/xrd-unconfined
   /etc/apparmor.d/xrd-unconfined`
 - Activate the AppArmor profile on the host by running `apparmor_parser -r
   /etc/apparmor.d/xrd-unconfined`
 
+If the container does not use this profile on AppArmor-enabled hosts, it will
+either fail to launch or launch with boot errors. To ensure that the profile is
+used, do the following:
+- If using `launch-xrd` or `xr-compose`, add the `--apparmor-enabled` command
+  line option.
+    - Make sure the profile is installed and enabled prior to this step, it
+      will automatically be used if so.
+- If running `docker` or `podman` manually, ensure that the `--security-opt
+  apparmor=xrd-unconfined` is passed as a command line option.
+    - Make sure the profile is installed and enabled prior to this step.
+
+**Note: See the [TroubleShooting Common Errors](#troubleshooting-common-errors)
+for potential errors that can be hit if this has not been set up correctly.**
+
+
+
 ### Known Limitations
-Running XRd in privileged mode on AppArmor-enabled hosts under `docker` is not supported. 
+Running XRd in privileged mode on AppArmor-enabled hosts under `docker` is not
+supported. Note that this assumes that XRd is correctly trying to run with the `xrd-unconfined` profile.
 The container may launch successfully upon first boot, but it is not guaranteed that the `xrd-unconfined` profile will be maintained upon `restart` or `stop` / `start`. For more information, please see 
 the issue raised [here](https://github.com/moby/moby/issues/51242).
 
-**Please note that `podman` does not have this limitation**.
+**Note that `podman` does not have this limitation**.
 
 ## Contributing
 
@@ -141,25 +159,12 @@ Check out the repo's [open issues](https://github.com/ios-xr/xrd-tools/issues) o
 Q: **I ran `launch-xrd` and I get the below error, what is the issue?**
 ```
 docker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to apply apparmor profile: apparmor failed to apply profile: write /proc/thread-self/attr/apparmor/exec: no such file or directory: unknown.
-HINT: Run 'host-check' to verify that everything was setup correctly.
 ```
 
-A: This means you do not have the `xrd-unconfined` AppArmor profile installed.
+A: This means you do not have the `xrd-unconfined` AppArmor profile installed,
+but have passed the `--apparmor-enabled` option to `launch-xrd`.
 See the [AppArmor](#apparmor) section for information on how to install and
-load the profile. 
-
-Q. **I ran `xr-compose` to create a yml, passed it to `docker-compose` OR used
-the `-l` option and I got the below error, what is the issue?**
-
-```
-Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to apply apparmor profile: apparmor failed to apply profile: write /proc/thread-self/attr/apparmor/exec: no such file or directory: unknown
-ERROR: Unexpected exception: Command '['docker-compose', '-f', 'docker-compose.yml', 'up', '-d']' returned non-zero exit status 1.
-HINT: Run 'host-check' to verify that everything was setup correctly.
-```
-
-A: This means you do not have the `xrd-unconfined` AppArmor profile installed.
-See the [AppArmor](#apparmor) section for information on how to install and
-load the profile. 
+load the profile.
 
 Q: **I ran `launch-xrd` specifically with `podman` and I get the below error,
 what is the issue?**
@@ -167,6 +172,31 @@ what is the issue?**
 Error: preparing container xxxxx for attach: AppArmor profile "xrd-unconfined" specified but not loaded
 ```
 
-A: This means you do not have the `xrd-unconfined` AppArmor profile installed.
+A: This means you do not have the `xrd-unconfined` AppArmor profile installed,
+but have passed the `--apparmor-enabled` option to `launch-xrd`.
 See the [AppArmor](#apparmor) section for information on how to install and
-load the profile. 
+load the profile.
+
+Q. **I ran `xr-compose` to create a yml, passed it to `docker-compose` OR used
+the `-l` option and I got the below error, what is the issue?**
+
+```
+Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: unable to apply apparmor profile: apparmor failed to apply profile: write /proc/thread-self/attr/apparmor/exec: no such file or directory: unknown
+ERROR: Unexpected exception: Command '['docker-compose', '-f', 'docker-compose.yml', 'up', '-d']' returned non-zero exit status 1.
+```
+
+A: This means you do not have the `xrd-unconfined` AppArmor profile installed,
+but have passed the `--apparmor-enabled` option to `xr-compose`.
+See the [AppArmor](#apparmor) section for information on how to install and
+load the profile.
+
+Q. **I launched the XRd container and notice this in my boot logs, what is the
+issue?**
+```
+[  FAIL  ] Failed to start System Logging Service.
+```
+A. This means you have launched XRd on an AppArmor-enabled host without the
+correct AppArmor profile **and/or** without the correct command line argument
+passed to `launch-xrd` / `xr-compose` / `docker` / `podman`. See the
+[AppArmor](#apparmor) section for information on how to install load the
+profile, and how to ensure that it is being used to launch the container.
