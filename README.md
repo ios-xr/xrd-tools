@@ -27,7 +27,9 @@ The following scripts have additional dependencies on top of the above:
 - `xr-compose`: also requires `docker-compose` (v1) to be on `PATH` and for the `PyYAML` python package be installed (e.g. in an active virtual environment).
 - `apply-bugfixes`: also requires `docker build`
 
-Further note that for AppArmor enabled systems you **must** have the `xrd-unconfined` profile installed and enabled. 
+Further note that for AppArmor enabled systems you **must** have the
+`xrd-unconfined` profile installed and enabled, and pass the appropriate
+command line options to `launch-xrd` / `xr-compose`/ `docker` / `podman` to use it.
 See [AppArmor](#apparmor) for more information.
 
 ## Repo Contents

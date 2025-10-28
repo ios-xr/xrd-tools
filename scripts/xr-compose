@@ -1689,15 +1689,6 @@ class XRCompose:
                     "IPC_LOCK",
                 ]
             )
-            # AppArmor is only supported for XRd with the xrd-unconfined
-            # profile (see README.md for instructions on how to install).
-            # SELinux is not supported for XRd with default docker profiles, so
-            # we must pass label=disable.
-            # Ok to unconditionally pass these arguments, as docker will ignore
-            # them if apparmor/SELinux not enabled.
-            service_yaml.setdefault("devices", []).extend(
-                ["/dev/fuse", "/dev/net/tun"]
-            )
             # SELinux is not supported for XRd with default docker profiles, so
             # we must pass label=disable.
             # Ok to unconditionally pass this argument, as docker and podman
@@ -1716,6 +1707,10 @@ class XRCompose:
                 service_yaml.setdefault("security_opt", []).extend(
                     ["apparmor=unconfined", "label=disable"]
                 )
+
+            service_yaml.setdefault("devices", []).extend(
+                ["/dev/fuse", "/dev/net/tun"]
+            )
 
     def add_service_networks(self, service: Service) -> None:
         """
