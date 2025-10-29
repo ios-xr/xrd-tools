@@ -102,7 +102,7 @@ class TestCLIArguments:
         cmd = [
             str(LAUNCH_XRD_SCRIPT),
             "--platform",
-            "xrd-control-plane", # Just use control plane as the default plat.
+            "xrd-control-plane",  # Just use control plane as the default plat.
             cls.default_img,
             "--dry-run",
         ] + cli_args
