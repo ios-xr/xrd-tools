@@ -195,7 +195,9 @@ load the profile.
 Q. **I launched the XRd container and notice this in my boot logs, what is the
 issue?**
 ```
-[  FAIL  ] Failed to start System Logging Service.
+         Starting System Logging Service...
+[FAILED] Failed to start System Logging Service.
+See 'systemctl status rsyslog.service' for details.
 ```
 A. This means you have launched XRd on an AppArmor-enabled host without the
 correct AppArmor profile **and/or** without the correct command line argument
