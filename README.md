@@ -137,7 +137,7 @@ used, do the following:
   apparmor=xrd-unconfined` is passed as a command line option.
     - Make sure the profile is installed and enabled prior to this step.
 
-**Note: See the [TroubleShooting Common Errors](#troubleshooting-common-errors)
+**Note: See [TroubleShooting Common Errors](#troubleshooting-common-errors)
 for potential errors that can be hit if this has not been set up correctly.**
 
 
