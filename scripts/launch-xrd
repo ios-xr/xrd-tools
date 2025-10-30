@@ -52,6 +52,11 @@ Optional arguments:
                                 whether using docker or podman
   --name NAME                   Specify container name
   --privileged                  Run the container with extended privileges
+  --apparmor-enabled            Launch the contianer on AppArmor-enabled hosts.
+                                If specifying this option, follow the steps from
+                                the README file located https://github.com/ios-xr/xrd-tools 
+                                to install and enable the 'xrd-unconfined' 
+                                AppArmor profile.
   --interfaces IF_TYPE:IF_NAME[,IF_FLAG[,...]][;IF_TYPE:IF_NAME[...]...]
                                 XR interfaces to create and their mapping to
                                 underlying linux/pci interfaces
@@ -171,6 +176,7 @@ DRY_RUN=0
 USE_RM=1
 IS_PRIVILEGED=0
 IS_ZTP_ENABLED=0
+APPARMOR_ENABLED=0
 IMAGE=""
 PLATFORM=""
 FIRST_BOOT_CONFIG=""
@@ -254,6 +260,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --privileged )
             IS_PRIVILEGED=1
+            shift
+            ;;
+        --apparmor-enabled )
+            APPARMOR_ENABLED=1
             shift
             ;;
         --args )
@@ -384,6 +394,16 @@ fi
 
 if [[ $IS_PRIVILEGED == 1 ]]; then
     caps_args+=("--privileged")
+    if [[ $APPARMOR_ENABLED == 1 ]]; then
+        # Note that launching XRd on AppArmor-enabled hosts in privileged mode
+        # is not currently supported with docker, even if the user specifies
+        # that AppArmor is enabled. It is not guaranteed that the
+        # xrd-unconfined profile will be correctly applied in this case- see
+        # (https://github.com/moby/moby/issues/51242) for more information. The
+        # AppArmor profile is being set here still for the benefit of podman,
+        # which does not have the aforementioned limitation.
+        misc_args+=("--security-opt" "apparmor=xrd-unconfined")
+    fi
 else
     # Unprivileged requires explicit list of capabilities.
     caps_args+=(
@@ -414,10 +434,27 @@ else
     misc_args+=(
         "--device" "/dev/fuse"
         "--device" "/dev/net/tun"
-        # AppArmor and SELinux are not supported with the default profiles.
-        "--security-opt" "apparmor=unconfined"
+        # SELinux is not supported for XRd with default docker profiles, so
+        # we must pass label=disable. 
+        # Ok to unconditionally pass this argument, as docker and podman will
+        # ignore it if SELinux is not enabled.
         "--security-opt" "label=disable"
     )
+    if [[ $APPARMOR_ENABLED == 1 ]]; then
+        # When the user specified that AppArmor is enabled, XRd is only
+        # supported on such hosts with the xrd-unconfined profile (see
+        # README.md for instructions on how to install).
+        misc_args+=(
+            "--security-opt" "apparmor=xrd-unconfined"
+        )
+    else 
+        # Ok to unconditionally pass this arguments, as both docker and podman will
+        # ignore unconfined mode if apparmor is not enabled.
+        misc_args+=(
+            "--security-opt" "apparmor=unconfined"
+        )
+    fi
+
     # Add XRd vRouter specific unprivileged arguments:
     if [[ $PLATFORM == "xrd-vrouter" ]]; then
         caps_args+=(

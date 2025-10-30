@@ -5,6 +5,21 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.2.0 (2025-10-07)
+
+- Added the `xrd-unconfined` AppArmor profile and instructions for how to
+  enable it and ensure it is used to launch the container.
+- Updated `host-check` and `test_host_check` to verify that AppArmor and the
+  `xrd-unconfined` profiles are correctly installed / enabled.
+- Updated `launch-xrd` to use the `xrd-unconfined` AppArmor profile if the
+  `--apparmor-enabled` option is specified.
+- Updated `xr-compose` to use the `xrd-unconfined` AppArmor profile if the
+  `--apparmor-enabled` option is specified.
+- Update the `README` to include a section explaining how to install the new
+  profile and ensure it is used, and another section on troubleshooting errors
+  related to this.
+- Added new UT for launch-xrd.
+
 ### v1.1.20 (2025-05-09)
 
 - Updated help for apply-bugfixes

@@ -1,4 +1,4 @@
-# Copyright 2021-2024 Cisco Systems Inc.
+# Copyright 2021-2025 Cisco Systems Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1839,49 +1839,85 @@ class TestLSMs(_CheckTestBase):
         """
         Test when config files read, they indicate LSMs are disabled or not
         installed.
+
         """
         expected = textwrap.dedent(
             f"""\
             INFO -- Linux Security Modules (No LSMs are enabled)
             """
         )
+        # The files are not found.
         result, output = self.perform_check(
             capsys, read_effects=[FileNotFoundError, FileNotFoundError]
         )
         assert textwrap.dedent(output) == expected
         assert result is CheckState.NEUTRAL
 
+        # The files contain no or unexpected content. Both "disabled" and
+        # "permissive" mode for SELinux should register as SELinux not being
+        # enforced.
         result, output = self.perform_check(
-            capsys, read_effects=["", "SELINUX=disabled"]
+            capsys, read_effects=["", "SELINUX=disabled\nSELINUX=permissive"]
         )
         assert textwrap.dedent(output) == expected
         assert result is CheckState.NEUTRAL
 
-    def test_apparmor_enabled(self, capsys):
-        """Test AppArmor config set to enabled."""
-        result, output = self.perform_check(
-            capsys,
-            read_effects=["nvidia_modprobe (enforce)", FileNotFoundError],
-        )
-        assert textwrap.dedent(output) == textwrap.dedent(
-            f"""\
-            WARN -- Linux Security Modules
-                    AppArmor is enabled. XRd is currently unable to run with the
-                    default docker profile, but can be run with
-                    '--security-opt apparmor=unconfined' or equivalent.
-                    However, some features might not work, such as ZTP.
-            """
-        )
-        assert result is CheckState.WARNING
+    def test_apparmor_enabled_with_profile(self, capsys):
+        """
+        Test AppArmor config set to enabled, and the `xrd-unconfiend`
+        profile is installed and active.
 
-    def test_selinux_enabled(self, capsys):
-        """Test SELinux config set to enabled."""
+        """
         expected = textwrap.dedent(
             f"""\
             INFO -- Linux Security Modules
-                    SELinux is enabled. XRd is currently unable to run with the
-                    default policy, but can be run with
-                    '--security-opt label=disable' or equivalent.
+                    AppArmor is running with the recommended `xrd-unconfined` profile.
+                    XRd is able to run under this profile by running with '--security-opt
+                    apparmor=xrd-unconfined', however this is not supported when launching
+                    the container in privileged mode.
+            """
+        )
+        result, output = self.perform_check(
+            capsys,
+            read_effects=["xrd-unconfined (enforce)", FileNotFoundError],
+        )
+        assert textwrap.dedent(output) == expected
+        assert result is CheckState.NEUTRAL
+
+    def test_apparmor_enabled_no_profile(self, capsys):
+        """
+        Test that if the profiles file does exist but does not contain the
+        `xrd-unconfined` profile, the check fails with the appropriate error
+        message.
+
+        """
+        expected = textwrap.dedent(
+            f"""\
+            FAIL -- Linux Security Modules
+                    AppArmor is running on this system but the `xrd-unconfined` profile is
+                    not installed / loaded. XRd is unable to run as expected without this
+                    profile in place, so please follow the steps from the README.md file
+                    at https://github.com/ios-xr/xrd-tools to install and enable the profile.
+            """
+        )
+        result, output = self.perform_check(
+            capsys, read_effects=["rsyslogd (enforce)", FileNotFoundError]
+        )
+        assert textwrap.dedent(output) == expected
+        assert result is CheckState.FAILED
+
+    def test_selinux_enabled(self, capsys):
+        """
+        Test that the correct message is displayed when the config file
+        indicates that SELinux is enabled.
+
+        """
+        expected = textwrap.dedent(
+            f"""\
+            INFO -- Linux Security Modules
+                    SELinux is enabled and enforced. XRd is currently unable to run with the
+                    default policy, but can be run with '--security-opt label=disable' or
+                    equivalent.
             """
         )
         result, output = self.perform_check(
@@ -1890,31 +1926,54 @@ class TestLSMs(_CheckTestBase):
         assert textwrap.dedent(output) == expected
         assert result is CheckState.NEUTRAL
 
+    def test_both_enabled_with_profile(self, capsys):
+        """
+        Test the case where both AppArmor and SELinux are enabled, and the
+        `xrd-unconfined` profile is correctly set up.
+
+        """
+        expected = textwrap.dedent(
+            f"""\
+            INFO -- Linux Security Modules
+                    AppArmor is running with the recommended `xrd-unconfined` profile.
+                    XRd is able to run under this profile by running with '--security-opt
+                    apparmor=xrd-unconfined', however this is not supported when launching
+                    the container in privileged mode.
+                    SELinux is enabled and enforced. XRd is currently unable to run with the
+                    default policy, but can be run with '--security-opt label=disable' or
+                    equivalent.
+            """
+        )
         result, output = self.perform_check(
-            capsys, read_effects=["", "SELINUX=enforcing"]
+            capsys,
+            read_effects=["xrd-unconfined (enforce)", "SELINUX=enforcing"],
         )
         assert textwrap.dedent(output) == expected
         assert result is CheckState.NEUTRAL
 
-    def test_both_enabled(self, capsys):
-        """Test the case where both AppArmor and SELinux are enabled."""
-        result, output = self.perform_check(
-            capsys,
-            read_effects=["nvidia_modprobe (enforce)", "SELINUX=enforcing"],
-        )
-        assert textwrap.dedent(output) == textwrap.dedent(
+    def test_both_enabled_no_profile(self, capsys):
+        """
+        Test the case where both AppArmor and SELinux are enabled, and the
+        `xrd-unconfined` profile is correctly set up.
+
+        """
+        expected = textwrap.dedent(
             f"""\
-            WARN -- Linux Security Modules
-                    AppArmor is enabled. XRd is currently unable to run with the
-                    default docker profile, but can be run with
-                    '--security-opt apparmor=unconfined' or equivalent.
-                    However, some features might not work, such as ZTP.
-                    SELinux is enabled. XRd is currently unable to run with the
-                    default policy, but can be run with
-                    '--security-opt label=disable' or equivalent.
+            FAIL -- Linux Security Modules
+                    AppArmor is running on this system but the `xrd-unconfined` profile is
+                    not installed / loaded. XRd is unable to run as expected without this
+                    profile in place, so please follow the steps from the README.md file
+                    at https://github.com/ios-xr/xrd-tools to install and enable the profile.
+                    SELinux is enabled and enforced. XRd is currently unable to run with the
+                    default policy, but can be run with '--security-opt label=disable' or
+                    equivalent.
             """
         )
-        assert result is CheckState.WARNING
+        result, output = self.perform_check(
+            capsys, read_effects=["rsyslogd (enforce)", "SELINUX=enforcing"]
+        )
+        assert textwrap.dedent(output) == expected
+        assert result is CheckState.FAILED
 
 
 class TestRealtimeGroupSched(_CheckTestBase):
