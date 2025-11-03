@@ -1682,7 +1682,10 @@ class XRCompose:
                     "KILL",
                     "AUDIT_WRITE",
                     "SYS_NICE",
+                    # As of kernel 2.6.38, CAP_SYSLOG has been split out of
+                    # CAP_SYS_ADMIN, therefore add it as a separate capability.
                     "SYS_ADMIN",
+                    "SYSLOG",
                     "SYS_RESOURCE",
                     "NET_ADMIN",
                     "SYS_PTRACE",

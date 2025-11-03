@@ -5,6 +5,11 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.2.0 (2025-11-03)
+
+- Updated the list of capabilites to include "SYSLOG", which has been split out
+  of SYS_ADMIN from kernel 2.6.38.
+
 ### v1.2.0 (2025-10-07)
 
 - Added the `xrd-unconfined` AppArmor profile and instructions for how to
