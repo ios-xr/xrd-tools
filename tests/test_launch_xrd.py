@@ -69,6 +69,7 @@ class TestCLIArguments:
             "IPC_LOCK",
             "NET_ADMIN",
             "SYS_ADMIN",
+            "SYSLOG",
             "SYS_NICE",
             "SYS_PTRACE",
             "SYS_RESOURCE",

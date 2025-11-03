@@ -426,7 +426,10 @@ else
         # Extras required by XRd.
         "--cap-add" "IPC_LOCK"
         "--cap-add" "NET_ADMIN"
+        # As of kernel 2.6.38, CAP_SYSLOG has been split out of CAP_SYS_ADMIN,
+        # therefore add it as a separate capability.
         "--cap-add" "SYS_ADMIN"
+        "--cap-add" "SYSLOG"
         "--cap-add" "SYS_NICE"
         "--cap-add" "SYS_PTRACE"
         "--cap-add" "SYS_RESOURCE"
