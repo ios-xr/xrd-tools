@@ -13,5 +13,4 @@ profile xrd-unconfined flags=(attach_disconnected,mediate_deleted) {
   umount,
   unix,
   remount,
-  mqueue,
 }
