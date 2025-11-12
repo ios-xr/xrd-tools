@@ -220,5 +220,5 @@ default](https://manpages.debian.org/testing/apparmor/apparmor.d.5.en.html).
 There is a [bug](https://bugs.launchpad.net/apparmor/+bug/2102237) in Ubuntu
 versions earlier than 25.04 which will cause the log to appear. The log itself
 does not indicate a problem with `mqueue` and can be ignored, but if you prefer
-to not see it anymore, please update your current `xrd-unconfied` profile with
+to not see it anymore, please update your current `xrd-unconfined` profile with
 the latest version from this repository.
