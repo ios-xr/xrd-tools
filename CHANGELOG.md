@@ -5,6 +5,14 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.2.2 (2025-11-03)
+
+- Update the AppArmor `xrd-unconfined` profile to remove `mqueue`. The presence
+  of `mqueue` produced the log `apparmor mqueue disconnected TODO` in releases
+  earlier than Ubuntu 25.04. The removal of `mqueue` does not cause `mqueue`
+  processes to fail, as even if not mentioned in a profile it is enabled by
+  default.
+
 ### v1.2.1 (2025-11-03)
 
 - Updated the list of capabilites to include "SYSLOG", which has been split out
