@@ -5,7 +5,7 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
-### v1.2.2 (2025-11-03)
+### v1.2.2 (2025-11-13)
 
 - Update the AppArmor `xrd-unconfined` profile to remove `mqueue`. The presence
   of `mqueue` produced the log `apparmor mqueue disconnected TODO` in releases
