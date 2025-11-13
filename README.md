@@ -204,21 +204,3 @@ correct AppArmor profile **and/or** without the correct command line argument
 passed to `launch-xrd` / `xr-compose` / `docker` / `podman`. See the
 [AppArmor](#apparmor) section for information on how to install load the
 profile, and how to ensure that it is being used to launch the container.
-
-Q: I launched a container using the `xrd-unconfined` profile I downloaded a
-while ago, but I keep seeing the following error in `/var/log/kern.log`:
-
-```
-apparmor mqueue disconnected TODO
-```
-
-A: Your `xrd-unconfined` profile is out of date. From v1.2.2 of these tools,
-the `mqueue` capability was removed from the profile. The removal of `mqueue`
-from the profile will not impose unwanted permissions on that process because
-it is [fully allowed by
-default](https://manpages.debian.org/testing/apparmor/apparmor.d.5.en.html).
-There is a [bug](https://bugs.launchpad.net/apparmor/+bug/2102237) in Ubuntu
-versions earlier than 25.04 which will cause the log to appear. The log itself
-does not indicate a problem with `mqueue` and can be ignored, but if you prefer
-to not see it anymore, please update your current `xrd-unconfined` profile with
-the latest version from this repository.
