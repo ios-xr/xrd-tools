@@ -31,37 +31,27 @@ and resource awareness. Both skills should be installed together.
 Consult your agent's documentation for the directory where skills are
 discovered. Both `xr-lab-assistant` and `xr-compose-tool` should be installed.
 
-For example, with GitHub Copilot you can copy or symlink the skill directories
-into `.github/skills/` in your workspace:
+For example, with GitHub Copilot you can symlink the skill directories into
+`.github/skills/` in your workspace:
 
 ```bash
-cp -r skills/xr-lab-assistant .github/skills/
-cp -r skills/xr-compose-tool  .github/skills/
+ln -s /path/to/xrd-tools/skills/xr-lab-assistant .github/skills/
+ln -s /path/to/xrd-tools/skills/xr-compose-tool  .github/skills/
 ```
 
 
 ## Compute Setup
 
-Before launching labs the agent needs a Docker environment and an XRd image.
-Set the following environment variables in your shell:
+The skills use the Docker environment available in the shell:
 
-```bash
-export LAB_COMPUTE_BACKEND=native
-export DOCKER_HOST="ssh://user@host:port"   # or leave unset for local Docker
-export LAB_COMPUTE_SESSION="${DOCKER_HOST:-local}"
-export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
-```
-
-| Variable | Description |
-|----------|-------------|
-| `DOCKER_HOST` | Docker daemon connection. Leave unset to use the local Docker socket. |
-| `XR_LAB_XRD_IMAGE` | XRd image path (`.tgz`) or registry reference. |
-| `LAB_COMPUTE_BACKEND` | Set to `native`. |
-| `LAB_COMPUTE_SESSION` | Set to `${DOCKER_HOST:-local}` -- identifies the compute session. |
-
-Multiple `DOCKER_HOST` values can be used to run concurrent labs on different
-hosts -- each distinct value is treated as a separate session, and the tooling
-prevents two labs from being launched on the same host.
+- **Docker host** -- the current `DOCKER_HOST` value is used, or the local
+  Docker socket if unset. You can also ask the agent to switch between
+  different `DOCKER_HOST` values during a session to run concurrent labs on
+  separate hosts.
+- **XRd image** -- defaults to `ios-xr/xrd-control-plane:latest`. XRd images
+  are not available on Docker Hub; the image must already be loaded into the
+  local Docker image store (e.g. via `docker load`). To use a different image
+  or version, tell the agent in the conversation.
 
 > **Note:** Additional compute automation skills can be provided separately to
 > handle environment discovery and session management automatically.
