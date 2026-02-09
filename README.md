@@ -54,6 +54,11 @@ Check the usage of the scripts by passing `--help`.
 
 Sample files, e.g. `xr-compose` topology samples.
 
+### `skills/`
+
+Agent skills for designing, launching, and interacting with XRd labs.
+See [skills/README.md](skills/README.md) for details.
+
 ### `templates/`
 
 Template files, whether illustrative scripts or template config/topology files.

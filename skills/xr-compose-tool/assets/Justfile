@@ -1,0 +1,275 @@
+# XR Compose Lab Management Justfile (skill-local)
+#
+# Environment variables (set by compute skill or wrapper):
+#   DOCKER_HOST      - Docker daemon connection (optional, uses local if unset)
+#   XR_COMPOSE_CMD   - xr-compose command (default: xr-compose)
+#   XR_LAB_XRD_IMAGE - XRd image path (.tgz) or registry reference
+#   XR_LAB_ROOT      - Override root directory (default: current directory)
+#
+# Running-lab state is tracked in .xr-compose-tool/running/<lab-id>.env
+
+# Read xr-compose command from environment (default: xr-compose)
+xr_compose_cmd := env_var_or_default("XR_COMPOSE_CMD", "xr-compose")
+
+# XRd image path or reference (set via XR_LAB_XRD_IMAGE or wrapper script)
+xrd_image := env_var_or_default("XR_LAB_XRD_IMAGE", "")
+
+# Root directory for lab discovery (default: just working directory)
+lab_root := env_var_or_default("XR_LAB_ROOT", ".")
+
+# State directory for tracking running labs
+state_dir := ".xr-compose-tool/running"
+
+# Default recipe - show available commands
+default:
+    @just --justfile {{justfile()}} --list
+
+# List all available labs (searches for docker-compose.xr.yml files)
+list-labs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Available labs (searching {{lab_root}}):"
+    if command -v rg &>/dev/null; then
+        rg --files -g 'docker-compose.xr.yml' "{{lab_root}}" 2>/dev/null | \
+            sed 's|/docker-compose.xr.yml$||; s|^\./||' | sort
+    else
+        find "{{lab_root}}" -name docker-compose.xr.yml \
+            -not -path '*/.cursor/*' \
+            -not -path '*/.xr-compose-tool/*' \
+            -not -path '*/.dvm-compute/*' \
+            2>/dev/null | \
+            sed 's|/docker-compose.xr.yml$||; s|^\./||' | sort
+    fi
+
+# Show which labs are currently running
+running:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d "{{state_dir}}" ] || [ -z "$(ls -A "{{state_dir}}" 2>/dev/null)" ]; then
+        echo "No labs are currently running"
+        exit 0
+    fi
+    echo "Running labs:"
+    for envfile in "{{state_dir}}"/*.env; do
+        [ -f "$envfile" ] || continue
+        lab_path=$(grep '^LAB_PATH=' "$envfile" | cut -d= -f2-)
+        docker_host=$(grep '^DOCKER_HOST=' "$envfile" | cut -d= -f2-)
+        echo "  ${lab_path} (DOCKER_HOST=${docker_host})"
+    done
+
+# List compute sessions currently in use by running labs (one per line)
+in-use-sessions:
+    #!/usr/bin/env bash
+    for env_file in "{{state_dir}}"/*.env; do
+        [ -f "$env_file" ] || continue
+        grep '^LAB_COMPUTE_SESSION=' "$env_file" | cut -d= -f2-
+    done
+
+# Launch a lab (usage: just launch <lab-path>)
+launch lab:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [ -z "{{xrd_image}}" ]; then
+        echo "Error: XR_LAB_XRD_IMAGE is not set."
+        echo "Hint: export XR_LAB_XRD_IMAGE=<image-path-or-reference>"
+        echo "      or configure a compute skill first"
+        exit 1
+    fi
+
+    # Determine lab ID for tracking (sanitize path: replace / with _)
+    lab_id=$(echo "{{lab}}" | sed 's|^/||; s|/$||; s|/|_|g')
+    env_file="{{state_dir}}/${lab_id}.env"
+
+    # Check if this lab is already tracked as running
+    if [ -f "$env_file" ]; then
+        echo "Error: Lab '{{lab}}' is already tracked as running."
+        echo "If it's not actually running, remove: $env_file"
+        exit 1
+    fi
+
+    # Check if the compute session is already in use by another lab
+    if [ -n "${LAB_COMPUTE_SESSION:-}" ] && [ -d "{{state_dir}}" ]; then
+        for existing_env in "{{state_dir}}"/*.env; do
+            [ -f "$existing_env" ] || continue
+            existing_session=$(grep '^LAB_COMPUTE_SESSION=' "$existing_env" | cut -d= -f2-)
+            if [ "$existing_session" = "${LAB_COMPUTE_SESSION}" ]; then
+                existing_lab=$(grep '^LAB_PATH=' "$existing_env" | cut -d= -f2-)
+                echo "Error: Compute session ${LAB_COMPUTE_SESSION} is already in use by lab '${existing_lab}'."
+                echo "Either shut down '${existing_lab}' first, or allocate a separate compute session."
+                exit 1
+            fi
+        done
+    fi
+
+    echo "Launching lab: {{lab}}"
+    echo "Using xr-compose command: {{xr_compose_cmd}}"
+    echo "Using image: {{xrd_image}}"
+
+    # Write tracking state BEFORE launch so partial launches are tracked.
+    # On failure, clean up the tracking file.
+    mkdir -p "{{state_dir}}"
+    {
+        echo "LAB_PATH={{lab}}"
+        echo "DOCKER_HOST=${DOCKER_HOST:-}"
+        echo "XR_COMPOSE_CMD={{xr_compose_cmd}}"
+        echo "XR_LAB_XRD_IMAGE={{xrd_image}}"
+        # Capture all LAB_COMPUTE_* vars from the environment
+        env | grep '^LAB_COMPUTE_' || true
+    } > "$env_file"
+
+    # Launch — remove tracking on failure so we don't leave ghost entries
+    if ! ( cd {{lab}} && {{xr_compose_cmd}} -f ./docker-compose.xr.yml -i "{{xrd_image}}" -l ); then
+        rm -f "$env_file"
+        echo "Launch failed. Tracking cleared."
+        exit 1
+    fi
+
+    echo "Lab {{lab}} is now tracked as running"
+
+# Shutdown a lab (usage: just shutdown <lab-path>)
+shutdown lab:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Determine lab ID for tracking
+    lab_id=$(echo "{{lab}}" | sed 's|^/||; s|/$||; s|/|_|g')
+    env_file="{{state_dir}}/${lab_id}.env"
+
+    # If we have a tracked env file, source it to get the right DOCKER_HOST
+    if [ -f "$env_file" ]; then
+        saved_docker_host=$(grep '^DOCKER_HOST=' "$env_file" | cut -d= -f2-)
+        if [ -n "$saved_docker_host" ]; then
+            export DOCKER_HOST="$saved_docker_host"
+        fi
+    fi
+
+    echo "Shutting down lab: {{lab}}"
+    # Always clean tracking even if docker-compose down fails, so we don't
+    # leave stale .env files that block future launches.
+    shutdown_ok=true
+    ( cd {{lab}} && docker-compose down -v ) || shutdown_ok=false
+
+    rm -f "$env_file"
+    echo "Lab tracking cleared for {{lab}}"
+
+    if [ "$shutdown_ok" = false ]; then
+        echo "Warning: docker-compose down reported errors (tracking still cleared)"
+    fi
+
+# Restart a lab (shutdown then launch)
+restart lab: (shutdown lab) (launch lab)
+    @echo "Restarting lab: {{lab}}"
+
+# Run a command (e.g. a show command) on a router (usage: just run <router> <command>)
+run router command:
+    @echo "Running command: {{command}} on router: {{router}}"
+    docker exec {{router}} /pkg/bin/xr_cli "{{command}}"
+
+# Run an EXEC shell on a router (usage: just exec <router>)
+exec router:
+    @echo "Connecting to router {{router}} ..."
+    docker exec -it {{router}} xr
+
+# List all routers in the current lab (returns space-separated list)
+list-routers:
+    @docker ps --format '{{{{.Names}}}}' | tr '\n' ' ' | xargs
+
+# Wait for one or more routers to boot (checks every second for up to 2 minutes)
+# Usage: just wait-for-boot "r1 r2 r3" or just wait-for-boot (defaults to all routers)
+wait-for-boot routers="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    # Parse routers (space-separated)
+    routers_input="{{routers}}"
+    if [ -z "$routers_input" ]; then
+        routers_input=$(docker ps --format '{{{{.Names}}}}' | tr '\n' ' ' | xargs)
+    fi
+    if [ -z "$routers_input" ]; then
+        echo "Error: No routers found in the current lab"
+        echo "Hint: Start a lab first with 'just launch <lab-path>'"
+        exit 1
+    fi
+    
+    declare -a router_list=($routers_input)
+    declare -a pending_routers=("${router_list[@]}")
+    declare -A boot_times
+    
+    if [ ${#router_list[@]} -eq 0 ]; then
+        echo "Error: No routers specified"
+        exit 1
+    fi
+    
+    timeout=120
+    elapsed=0
+    start_time=$(date +%s)
+    
+    echo "Waiting for ${#router_list[@]} router(s) to boot: ${router_list[*]}"
+    echo ""
+    
+    while [ ${#pending_routers[@]} -gt 0 ] && [ $elapsed -lt $timeout ]; do
+        # Check each pending router
+        declare -a still_pending=()
+        for router in "${pending_routers[@]}"; do
+            # Use script to allocate a PTY for sysdbcon, suppressing TTY warnings with 2>&-
+            output=$(script -qec "docker exec -it \"$router\" /pkg/bin/xr_cli 'run printf \"\\\\nget ipc/gl/config/startup/done\\\\nq\\\\n\" | sysdbcon 2>&1 2>&-'" /dev/null 2>&1 || true)
+            if echo "$output" | grep -q "uint32"; then
+                boot_times[$router]=$elapsed
+                echo "✓ Router $router has booted successfully! (took ${elapsed}s)"
+            else
+                still_pending+=("$router")
+            fi
+        done
+        
+        # Update pending list
+        pending_routers=("${still_pending[@]}")
+        
+        # Show status if there are still pending routers
+        if [ ${#pending_routers[@]} -gt 0 ]; then
+            printf "  Still waiting for %d router(s): %s [%ds/%ds]\r" \
+                ${#pending_routers[@]} "${pending_routers[*]}" $elapsed $timeout
+            sleep 1
+            elapsed=$(($(date +%s) - start_time))
+        fi
+    done
+    
+    echo ""
+    echo ""
+    
+    # Report final status
+    booted_count=$((${#router_list[@]} - ${#pending_routers[@]}))
+    if [ ${#pending_routers[@]} -eq 0 ]; then
+        echo "✓ All ${#router_list[@]} router(s) booted successfully!"
+        exit 0
+    else
+        echo "✗ ERROR: ${#pending_routers[@]} router(s) failed to boot within ${timeout} seconds:"
+        for router in "${pending_routers[@]}"; do
+            echo "  - $router"
+        done
+        if [ $booted_count -gt 0 ]; then
+            echo ""
+            echo "Successfully booted $booted_count router(s):"
+            for router in "${router_list[@]}"; do
+                if [ -n "${boot_times[$router]:-}" ]; then
+                    echo "  - $router (${boot_times[$router]}s)"
+                fi
+            done
+        fi
+        exit 1
+    fi
+
+# Show running containers
+ps:
+    @docker ps --format "table {{{{.Names}}\t{{{{.Status}}\t{{{{.Ports}}"
+
+logs lab:
+    cd {{lab}} && docker-compose logs -f -t
+
+log router:
+    docker logs -f {{router}}
+
+# Clean up all stopped containers and networks
+clean:
+    docker container prune -f
+    docker network prune -f
