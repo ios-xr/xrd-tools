@@ -5,6 +5,12 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.3.0 (2026-02-10)
+
+- Added agent skills for designing, launching, and interacting with XRd labs.
+  Two skills are included: `xr-lab-assistant` (full lab lifecycle) and
+  `xr-compose-tool` (tooling layer wrapping xr-compose and docker-compose).
+
 ### v1.2.2 (2025-11-13)
 
 - Update the AppArmor `xrd-unconfined` profile to remove `mqueue`. The presence
