@@ -55,7 +55,7 @@ services:
   xr-1:
     # The loaded XRd image must be specified either here or using the '--image'
     # CLI option to xr-compose.
-    image: ios-xr:7.4.1
+    image: ios-xr:25.4.1
     # A container name will be generated from the service name and the topology
     # identifier if one is not specified.
     # The topology identifier may be specified as an input argument to
@@ -104,7 +104,7 @@ services:
       mgmt:
         ipv4_address: 17.19.0.2
   xr-2:
-    image: ios-xr:7.4.1
+    image: ios-xr:25.4.1
     xr_startup_cfg: /path/to/config_file_xr2
     xr_interfaces:
       - Gi0/0/0/0
@@ -112,13 +112,13 @@ services:
       - Gi0/0/0/2
       - Mg0/RP0/CPU0/0
   xr-3:
-    image: ios-xr:7.4.1
+    image: ios-xr:25.4.1
     xr_startup_cfg: /path/to/config_file_xr3
     xr_interfaces:
       - Gi0/0/0/0
       - Gi0/0/0/1
   xr-4:
-    image: ios-xr:7.4.1
+    image: ios-xr:25.4.1
     xr_startup_cfg: /path/to/config_file_xr4
     xr_interfaces:
       - Gi0/0/0/0
