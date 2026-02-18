@@ -120,7 +120,7 @@ docker create \
 --env XR_EVERY_BOOT_CONFIG=/etc/xrd/startup.cfg \
 --mount type=bind,source=/xr-startup-cfg,target=/etc/xrd/startup.cfg \
 --net none \
--it localhost/ios-xr:7.4.1.31I
+-it localhost/ios-xr:25.4.1
 
 # =================
 # Start container
