@@ -6,6 +6,7 @@
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
 ### v1.3.1 (2026-02-18)
+
 - Update xr-compose templates to use recent IOS-XR version
 
 ### v1.3.0 (2026-02-10)
