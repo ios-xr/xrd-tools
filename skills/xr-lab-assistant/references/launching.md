@@ -59,7 +59,7 @@ Allow up to **150 seconds** from when the lab was launched for convergence.
 - Which checks passed/failed
 - Next action (wait duration, retry, or investigate)
 
-⚠️ **Do NOT investigate failures early. Do NOT skip retries.** The network needs time to converge. BGP commonly shows 0 prefixes or `Active` state for 120+ seconds after launch—this is normal convergence delay, not a configuration error.
+⚠️ **Exhaust the retry window before investigating.** The network needs time to converge. BGP commonly shows 0 prefixes or `Active` state for 120+ seconds after launch—this is normal convergence delay, not a configuration error.
 
 **What "converged" means for BGP:** The `St/PfxRcd` column must show a **non-zero number**. Values of `0`, `Idle`, or `Active` mean BGP has NOT converged—keep retrying.
 
@@ -101,7 +101,7 @@ Before proceeding past each phase, explicitly verify:
 **Before switching to Interacting duty:**
 - [ ] Did ALL FOUR phases complete successfully?
 
-⚠️ **NEVER move to Interacting duty until all smoke tests pass.** There are no exceptions.
+⚠️ Proceed to Interacting duty only after all smoke tests pass. There are no exceptions.
 
 ## Handling Failures
 
@@ -110,4 +110,4 @@ If tests fail after exhausting retries:
 - Debug and resolve before moving to Interacting.
 - Start with the most likely hypothesis based on the error message.
 - Consult documentation whenever the cause is unclear, and always after two hypothesis cycles without progress. This is especially important for complex features.
-- **To apply fixes, switch to Designing duty**—update config files and relaunch. Do not apply fixes via interactive CLI; this creates drift between config files and running state.
+- **To apply fixes, switch to Designing duty**—update config files and relaunch. Applying fixes via interactive CLI creates drift between config files and running state.

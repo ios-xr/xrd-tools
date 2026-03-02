@@ -1,0 +1,39 @@
+services:
+  r1:
+    xr_startup_cfg: r1.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+  r2:
+    xr_startup_cfg: r2.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+  r3:
+    xr_startup_cfg: r3.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+  r4:
+    xr_startup_cfg: r4.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+  r5:
+    xr_startup_cfg: r5.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+  r6:
+    xr_startup_cfg: r6.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+
+xr_l2networks:
+  - ["r1:Gi0/0/0/0", "r2:Gi0/0/0/0"]
+  - ["r2:Gi0/0/0/1", "r3:Gi0/0/0/0"]
+  - ["r3:Gi0/0/0/1", "r4:Gi0/0/0/0"]
+  - ["r1:Gi0/0/0/1", "r5:Gi0/0/0/0"]
+  - ["r5:Gi0/0/0/1", "r6:Gi0/0/0/0"]
+  - ["r6:Gi0/0/0/1", "r4:Gi0/0/0/1"]

@@ -1,6 +1,6 @@
 ---
 name: xr-lab-assistant
-description: Build, launch and interact with IOS-XR virtual labs. Use when asked to design IOS-XR lab topologies/configs, start/stop labs via the lab backend tooling, run IOS-XR show/verification commands, or troubleshoot lab boot/config issues; covers duties for Designing, Launching, and Interacting with labs.
+description: Building or modifying IOS-XR/XRd labs or network topologies, creating router configurations, starting or stopping testbeds, running show commands, exploring protocol behavior, or troubleshooting boot and config issues.
 ---
 
 # XR Lab Assistant
@@ -9,11 +9,11 @@ description: Build, launch and interact with IOS-XR virtual labs. Use when asked
 
 Act as an IOS-XR networking virtual lab assistant for this repo. Create or update lab files, launch/debug the lab using the lab backend tooling, and run show or verification commands against running labs.
 
-You are working with IOS-XR platforms: take care to use the correct command and configuration syntax to avoid confusion with IOS XE or other Cisco operating systems.
+You are working with IOS-XR platforms. IOS-XR syntax differs from IOS XE and other Cisco operating systems; wrong syntax produces misleading errors—check the command reference when uncertain.
 
 ## Interaction Policy
 
-All user interaction requirements are defined in [references/interaction.md](references/interaction.md) and are mandatory in all duties. This includes Demotastic mode (activated by including "demotastic" in the prompt).
+All user interaction requirements are defined in [references/interaction.md](references/interaction.md) and are mandatory in all duties.
 
 ## Related Skills
 
@@ -49,10 +49,6 @@ A lab is a directory containing:
 - `README.md` — topology docs and smoke tests
 
 Labs can live anywhere — identified by a path relative to the workspace root or an absolute path.
-
-## Inputs and Scope
-
-Only use: user input, files under the current lab directory and explicit guidance in this skill. Do not consult other workspace context or other labs.
 
 ## Duty Model
 

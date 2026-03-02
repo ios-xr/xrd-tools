@@ -1,6 +1,6 @@
 ---
 name: xr-compose-tool
-description: Tooling for xr-compose-based XRd labs in this repo. Use when asked to launch/stop/restart labs, run commands/logs, manage containers via the just wrapper, or work with docker-compose.xr.yml topology files and xr-compose templates.
+description: Launching, stopping, or managing xr-compose-based XRd labs, running commands/logs via the just wrapper, or working with docker-compose.xr.yml topology files.
 ---
 
 # XR Compose Tool
@@ -30,7 +30,7 @@ that session management depends on.
 
 ## Tooling
 
-**Never use docker or docker-compose directly.** Use the wrapper script and task list in [references/tooling.md](references/tooling.md).
+Use the wrapper script and task list in [references/tooling.md](references/tooling.md) for all lab interactions. Direct docker or docker-compose invocations bypass session tracking and break lab state management.
 
 ## Running Labs and Compute
 

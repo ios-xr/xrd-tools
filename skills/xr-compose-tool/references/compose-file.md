@@ -17,8 +17,8 @@ How to handle the `image` field depends on the image source:
 ### Archive Images (`.tgz` files)
 
 When using a tarball image (e.g., workspace-built image):
-- **Do not specify** the `image` field in the topology file
-- The image is passed via `-i <path>` argument to xr-compose
+- **Omit** the `image` field in the topology file—specifying it would conflict with the `-i` argument and cause xr-compose to look for an image that isn't in the topology
+- Pass the image via `-i <path>` argument to xr-compose
 - xr-compose handles loading and tagging the image
 
 ### Registry Images
@@ -27,7 +27,7 @@ When using a Docker registry reference:
 - The image is passed via `--image <reference>` to xr-compose
 - xr-compose sets the image for all XRd services
 
-**Note:** In most cases, you do not need to specify `image` in the topology file.
+**Note:** In most cases, omit `image` from the topology file.
 The tooling passes the image via command-line arguments based on `XR_LAB_XRD_IMAGE`.
 
 ## Template Reference
