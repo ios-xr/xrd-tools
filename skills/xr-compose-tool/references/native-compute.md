@@ -17,7 +17,7 @@ Set these before launching a lab:
 export LAB_COMPUTE_BACKEND=native
 export DOCKER_HOST="ssh://user@host:port"   # or leave unset for local Docker
 export LAB_COMPUTE_SESSION="${DOCKER_HOST:-local}"
-export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
+export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:25.4.1
 ```
 
 | Variable | Description |
@@ -49,7 +49,7 @@ check is skipped. See [running-labs.md](running-labs.md) for details.
 ```bash
 export LAB_COMPUTE_BACKEND=native
 export LAB_COMPUTE_SESSION=local
-export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
+export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:25.4.1
 # DOCKER_HOST left unset — uses local Docker socket
 ```
 
@@ -59,7 +59,7 @@ export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
 export LAB_COMPUTE_BACKEND=native
 export DOCKER_HOST="ssh://root@my-server:22"
 export LAB_COMPUTE_SESSION="${DOCKER_HOST}"
-export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
+export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:25.4.1
 ```
 
 ### Multiple remote hosts (concurrent labs)
@@ -69,7 +69,7 @@ export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
 export LAB_COMPUTE_BACKEND=native
 export DOCKER_HOST="ssh://root@server-a:22"
 export LAB_COMPUTE_SESSION="${DOCKER_HOST}"
-export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
+export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:25.4.1
 # launch lab A ...
 
 # Session 2 — switch DOCKER_HOST and SESSION

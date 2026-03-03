@@ -165,6 +165,6 @@ networks:
   xrd-1-ubuntu-1:
     ipam:
       config:
-        - subnet 10.0.0.0/16
+        - subnet: 10.0.0.0/16
     xr_interfaces:
       - xr-1:Gi0/0/0/2

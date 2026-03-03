@@ -804,7 +804,9 @@ class Network:
         """
         self.topo_id = topo_id
         self.generated = generated
-        self.container_prefix = "xr-{}".format(Network.network_id)
+        # Zero-padded format (xr-n00, xr-n01, ...) avoids collisions when 10+
+        # networks exist: xr-1 and xr-10 would share prefix xr-1.
+        self.container_prefix = "xr-n{:02d}".format(Network.network_id)
         Network.network_id += 1
         self.name = name
         self.interfaces: List[Interface] = []

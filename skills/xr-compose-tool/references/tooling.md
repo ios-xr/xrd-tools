@@ -2,9 +2,9 @@
 
 ## Wrapper
 
-**NEVER run `docker` or `docker-compose` commands directly.** All lab interactions—including status checks (`ps`), logs, and exec—must use the wrapper script.
+Use the wrapper script for all lab interactions—including status checks (`ps`), logs, and exec. Direct `docker` or `docker-compose` invocations bypass the Justfile's session tracking and environment handling.
 
-- Wrapper: `<skills>/xr-compose-tool/scripts/just-wrapper.sh`
+- Wrapper: `<skills>/xr-compose-tool/scripts/just-wrapper.sh` (replace `<skills>` with the path to the skills directory; e.g. `xrd-tools/skills` when the skill is workspace-mounted)
 - Invocation: `./<skills>/xr-compose-tool/scripts/just-wrapper.sh <task> [args]`
 
 ## Available Tasks
@@ -31,7 +31,7 @@ wait-for-boot routers="" # Wait for routers to boot (usage: just wait-for-boot "
 ### Image Configuration
 
 - `XR_LAB_XRD_IMAGE` - XRd image path or registry reference
-  - Can be an archive path (e.g., `/path/to/xrd.tgz`) or registry reference (e.g., `ios-xr/xrd-control-plane:7.11.1`)
+  - Can be an archive path (e.g., `/path/to/xrd.tgz`) or registry reference (e.g., `ios-xr/xrd-control-plane:25.4.1`)
   - Passed via `-i` to xr-compose (works for both types)
   - Default: `ios-xr/xrd-control-plane:latest`
 
@@ -84,7 +84,7 @@ source <skills>/dvm-compute/scripts/setup-env.sh
 export LAB_COMPUTE_BACKEND=native
 export DOCKER_HOST="ssh://root@my-server:22"
 export LAB_COMPUTE_SESSION="${DOCKER_HOST}"
-export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
+export XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:25.4.1
 
 # Then launch
 ./<skills>/xr-compose-tool/scripts/just-wrapper.sh launch my-lab

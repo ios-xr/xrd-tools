@@ -5,7 +5,7 @@
 Create/update files in the lab directory:
 
 - Use snake_case for lab directory names (e.g., `srv6_l3vpn`, `isis_basic`)
-- Do not overwrite an existing lab when creating a new one
+- Create new labs in new directories; reusing a directory overwrites the existing lab
 
 ### Topology Definition
 
@@ -20,12 +20,14 @@ Always include this base configuration:
 ```cisco
 hostname <hostname>
 logging console debugging
-username cisco
+username <user>
  group root-lr
  group cisco-support
- secret cisco123
+ secret <password>
 !
 ```
+
+Resolve `<user>` and `<password>` from the lab backend skill's credential guidance. If the lab backend skill does not specify credentials, ask the user before writing configs.
 
 Additional requirements:
 - Each router must have at least one loopback interface
@@ -44,7 +46,7 @@ Document the lab using these sections. The README should be detailed enough that
 - **Smoke tests**: A small number of tests verifying end-to-end behaviour (e.g. ping) rather than intermediate protocol state
 - **Evolutions** (optional): Suggestions to evolve the lab for more advanced concepts
 
-Include explanation and justification and don't just state facts, but keep it concise and actionable.
+Include explanation and justification for key decisions; keep it concise and actionable.
 
 ## Review
 
@@ -60,6 +62,7 @@ After writing all lab files, perform the end-of-design review before completing 
   - [ ] Topology definition file
   - [ ] Router configs (one per router)
   - [ ] README.md
+- [ ] Credentials resolved — `<user>`/`<password>` placeholders replaced with actual values from the lab backend skill or user input
 - [ ] Re-read [design-review.md](design-review.md) immediately before starting the review
 - [ ] End-of-design review passed — includes its own checklist in [design-review.md](design-review.md)
 

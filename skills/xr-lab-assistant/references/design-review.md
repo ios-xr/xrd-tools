@@ -16,46 +16,81 @@ Reconcile non-trivial protocol and feature configuration against authoritative r
 
 **Role-specific scope**: The same protocol may require different configuration on routers with different roles - for example CE, PE or P routers.  When a feature's config differs materially by role, treat each role's variant as a separate reconciliation scope so that role-specific lines are compared against role-appropriate reference examples.
 
-**All lines**: A feature for reconciliation is the **entire config block** under its protocol or service parent — not just the lines that feel novel. Do not split a feature into "standard base config" and "interesting parts".
+**All lines**: A feature for reconciliation is the **entire config block** under its protocol or service parent — not just the lines that feel novel. Include the full block; splitting into "standard base config" and "interesting parts" produces an incomplete reconciliation.
 
 ### Locating References
 
 #### How many
 
-Find **two references per feature** that corroborate each other — different features will typically need different references (e.g., an IS-IS guide and an SRv6 L3VPN guide are distinct sources for distinct features). A single document may cover multiple features, which is fine; the requirement is that each feature has two sources, not that every feature uses unique documents. Consistent configs across sources increases confidence. Differences may indicate platform/version variations or optional elements worth understanding. If only one complete example can be found, proceed but note the single-source limitation. For obscure features, two references may not be available — acknowledge this and document what was found.
+Find **two references per feature** that corroborate each other — different features will
+typically need different references. A single document may cover multiple features, which
+is fine. Consistent configs across sources increase confidence;
+differences may indicate platform/version variations or optional elements worth
+understanding.
+
+If only one complete example can be found, proceed but note the single-source limitation.
 
 #### How to pick
 
-**Prefer significantly different sources**: The following provide the illusion of corroboration without genuine independent verification:
+**Use structurally different source types**: Same guide across platforms or software
+versions shares nearly identical content and does not provide genuine corroboration.
+Same-platform CCO guides also count as one source type unless they cover the feature
+from genuinely different angles (e.g., an IS-IS config guide chapter vs. an SRv6
+guide chapter that includes IS-IS for locator advertisement). Pick references from
+different source types — for example, a CCO config guide chapter and an xrdocs.io
+tutorial.
 
-- **Same guide, different platform** (e.g., 8000 Series vs. others) — these share nearly identical structure, syntax, and examples.
-- **Same guide, different software version** (e.g., IOS XR 7.11.x vs 25.4.x) — these are typically identical unless a feature was introduced or changed between releases. (Note: XR version 25.x is more recent than 7.x — the naming scheme changed.)
+**Verify the operating system**: References must describe IOS-XR configuration. Cisco's
+support-doc URL taxonomy can be misleading (e.g., paths containing `ios-nx-os-software`
+may still host IOS-XR content, or vice versa).
 
-Instead, pick references from different source types listed in **Documentation sources** below.
-
-**Verify the operating system**: References must describe IOS-XR configuration. But note that Cisco's support-doc URL taxonomy can be misleading (e.g., paths containing `ios-nx-os-software` may still host IOS-XR content, or vice versa).
-
-**Prefer recent software versions**: When multiple versions of a guide exist, recent releases (e.g., 25.x.y over 24.x.y over 7.x.y) are preferred.  An older version is fine if it is genuinely more relevant to the lab's requirements.
-
-**Prefer same parameter values**: Prefer references that use the same parameter values as the proposal (e.g., prefix length, mode name, algorithm type). Parameter-specific companion requirements may only appear in examples using that exact value. Confirm the exact feature name and syntax for the XR release used by the lab, and check any platform-specific caveats.
+**Software versions**: When search returns multiple versions of the same guide, prefer
+recent releases (e.g., 25.x.y over 24.x.y over 7.x.y). Do not seek a newer version
+if search already returned a usable chapter-level page — the content is nearly
+identical across versions for stable features. (Note: XR version 25.x is more recent
+than 7.x — the naming scheme changed.)
 
 #### Documentation sources
 
-Check in order:
+Cisco CCO documentation (cisco.com) is the preferred primary source — use IOS XR
+Configuration Guide and Command Reference chapters for authoritative syntax. Prefer
+chapter-level pages; guide landing pages are tables of contents that contain no
+configuration examples.
 
-1. **Cisco IOS XR Configuration Guides / Command Reference** — authoritative syntax
-2. **xrdocs.io** — practical tutorials with complete configuration examples
-3. **Cisco Community** — discussions, edge cases, troubleshooting context
+Two references per feature means at least one will typically come from outside CCO.
+Other sources include xrdocs.io tutorials, workspace lab configs and sample topologies,
+other context available to the agent, or references obtained from other agents. These
+are examples, not an exhaustive list. Both references must contain IOS-XR
+configuration examples — conceptual or multi-vendor material does not provide
+syntactic corroboration.
 
 #### How to fetch
 
-Save complete documents to `<lab path>/references/` for reuse throughout the session. This avoids re-fetching and provides a consistent reference across debugging cycles. Convert to markdown for searchability.
+Save complete documents to `<lab path>/references/` for reuse throughout the session.
+Convert to markdown for searchability.
 
 ```bash
-curl -sL --max-time 30 "https://r.jina.ai/<url>" -o references/<doc-name>.md
+curl -sL --max-time 60 "https://r.jina.ai/<url>" -o references/<doc-name>.md
 ```
 
-Jina fetches occasionally fail — the response may be an error or an empty/near-empty file (check with `wc -l`).  On failure retry the same URL once before trying an alternative source.
+**Finding URLs**: Search the web for the feature name, platform, and software version
+to locate documentation pages. Do not construct or guess URLs — Cisco's URL structure
+changes across releases, so a constructed URL is unlikely to resolve to real content.
+Target chapter-level pages rather than guide roots.
+
+**Detecting failures**: After fetching, check the result with `wc -l`. A result with
+very few lines (≤ 20) indicates the URL resolves to a not-found stub or access-denied
+page served as HTTP 200. These failures are deterministic — retrying the same URL
+produces the same result. Search for a different URL instead (e.g., a different
+software version or platform).
+
+If the result has more lines but reads as a table of contents (section headings and
+links, no configuration blocks), the URL is a guide landing page. Extract the
+chapter URLs from the links in the fetched document and fetch the relevant chapter
+directly.
+
+**Network errors**: Retry the same URL once only for genuine network errors (timeout,
+empty response, or curl error code). If the retry also fails, move to a different URL.
 
 ### Performing the Reconciliation
 
@@ -79,7 +114,7 @@ Produce a table with one row per configuration line — every line under the fea
 - ℹ️ means a justified difference OR an optional line (`Opt`) — the verdict must explain why the line is kept (e.g., best practice, deterministic behavior).
 - ❌ means an action is needed — the line is missing, incorrect, or unnecessary (`Extra`). All `Extra` rows must be resolved: either remove the line, or reclassify as `Opt` with justification.
 
-If the Verdict describes any difference (Missing, Extra, Differs, Optional), the status **must** be ℹ️ or ❌, never ✅.
+If the Verdict describes any difference (Missing, Extra, Differs, Optional), the status must be ℹ️ or ❌; use ✅ only when the line matches a reference and is required.
 
 **Formatting**: Wrap every config-line cell in backticks. **Indentation is mandatory**: use dots to represent IOS-XR hierarchy depth (two dots per nesting level below the top-level parent). For example, a command nested 2 levels deep uses `....command`. This is necessary because markdown renderers strip leading whitespace from inline code spans. A table where all config lines appear flush-left (no dots) is a review failure — it makes hierarchy verification impossible.
 
@@ -103,7 +138,7 @@ Feature: ACME Tunneling (under `router acme 100`)
 
 The following criteria govern whether each row in the table is correct. All criteria contribute ❌ or ℹ️ rows.
 
-**Line-by-line comparison**: Walk through every line in the proposal and both references — do not skim or summarize. For each line, determine whether it matches, differs, is missing from the proposal, or is extra in the proposal. Do not skip lines by categorizing them as "standard" or "basic"; every line within the feature's scope must appear as a row. This produces the initial table.
+**Line-by-line comparison**: Walk through every line in the proposal and both references. For each line, determine whether it matches, differs, is missing from the proposal, or is extra in the proposal. Every line within the feature's scope must appear as a row — including lines that might seem "standard" or "basic". This produces the initial table.
 
 **Hierarchy**: Verify each command appears under the **same config context** as in the references. Compare the full parent path, not just the command itself. Example: if a reference shows `router foo` → `child-a` → `feature-x`, but the proposal has `router foo` → `child-b` → `feature-x`, that's wrong even though `feature-x` syntax is correct.
 
@@ -111,7 +146,7 @@ The following criteria govern whether each row in the table is correct. All crit
 
 **Best-practice alignment**: Where references reveal a cleaner, more current, or more idiomatic approach than the proposal — even if the proposal would technically work — consider adopting it. Earlier design choices were made with less context; revisiting them in light of authoritative examples is a feature of the review, not a failure.
 
-**Minimal configuration**: Populate the Necessity column for every row. For each proposal line, ask: "Would the lab function without this line?" If yes and there is no strong best-practice reason to keep it, mark it `Extra` (status ❌). If yes but it is justified (best practice, deterministic behavior, operational clarity), mark it `Opt` (status ℹ️) with the justification in the verdict. If the line is required, mark it `Req`. Every row must have a Necessity value — a table with empty Necessity cells is incomplete. This is lower priority than best-practice alignment — don't mark something `Extra` that best practice says should be there.
+**Minimal configuration**: Populate the Necessity column for every row. For each proposal line, ask: "Would the lab function without this line?" If yes and there is no strong best-practice reason to keep it, mark it `Extra` (status ❌). If yes but it is justified (best practice, deterministic behavior, operational clarity), mark it `Opt` (status ℹ️) with the justification in the verdict. If the line is required, mark it `Req`. Every row must have a Necessity value — a table with empty Necessity cells is incomplete. This is lower priority than best-practice alignment — if best practice says the line should be there, mark it `Req` or `Opt` rather than `Extra`.
 
 #### Resolving the Table — iteration
 
@@ -128,7 +163,7 @@ Present the following for each feature:
 - Key differences reconciled and their resolution
 - Iteration notes: fixes applied, what was re-examined afterwards, and any rows whose status or necessity changed as a result (or an explicit statement that none changed and why)
 
-Do not skim or summarize. Walk through each line of each reference.
+Walk through each line of each reference.
 
 ## Review Completion Checklist
 

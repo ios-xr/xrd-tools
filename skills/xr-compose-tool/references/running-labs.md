@@ -31,7 +31,7 @@ LAB_COMPUTE_RAM=32
 LAB_PATH=srv6_l3vpn
 DOCKER_HOST=ssh://root@my-server:22
 XR_COMPOSE_CMD=xr-compose
-XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:7.11.1
+XR_LAB_XRD_IMAGE=ios-xr/xrd-control-plane:25.4.1
 LAB_COMPUTE_BACKEND=native
 LAB_COMPUTE_SESSION=ssh://root@my-server:22
 ```
@@ -96,9 +96,7 @@ modifying a topology — check that the compute session has enough resources.
 
 Warn the user that the current compute session does not have enough resources
 and suggest re-allocating compute with a larger profile before launching.
-
-Do **not** silently proceed — under-provisioned launches typically fail at the
-container level and waste time.
+Under-provisioned launches typically fail at the container level and waste time.
 
 ### If capacity variables are absent
 

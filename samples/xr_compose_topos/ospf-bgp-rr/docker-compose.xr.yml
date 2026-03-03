@@ -1,0 +1,133 @@
+# Topology
+# --------
+#      [host1]                     [host2]
+#         |                           |
+#        pe1 -------- pe2 --------- pe3
+#         |                           |
+#        rr1 ---------------------- rr2
+#
+# 5 XRd routers + 2 Alpine hosts
+# OSPF Area 0 on inter-router links; BGP AS 65000 with dual route reflectors
+# Host subnets carried in BGP only (not OSPF) -- RR is essential for host reachability
+
+services:
+  host1:
+    non_xr: true
+    image: alpine:3.15
+    container_name: host1
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    command: >-
+      /bin/sh -c
+      "ip route add 172.30.2.0/24 via 172.30.1.1
+      && ip route add 192.168.0.0/16 via 172.30.1.1
+      && /bin/sh"
+    networks:
+      host1-pe1:
+        ipv4_address: 172.30.1.100
+  host2:
+    non_xr: true
+    image: alpine:3.15
+    container_name: host2
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    command: >-
+      /bin/sh -c
+      "ip route add 172.30.1.0/24 via 172.30.2.1
+      && ip route add 192.168.0.0/16 via 172.30.2.1
+      && /bin/sh"
+    networks:
+      host2-pe3:
+        ipv4_address: 172.30.2.100
+  pe1:
+    xr_startup_cfg: pe1.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Gi0/0/0/2
+      - Gi0/0/0/3
+      - Mg0/RP0/CPU0/0
+    networks:
+      host1-pe1:
+        ipv4_address: 172.30.1.1
+      mgmt:
+        ipv4_address: 172.28.0.1
+  pe2:
+    xr_startup_cfg: pe2.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Mg0/RP0/CPU0/0
+    networks:
+      mgmt:
+        ipv4_address: 172.28.0.2
+  pe3:
+    xr_startup_cfg: pe3.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Gi0/0/0/2
+      - Gi0/0/0/3
+      - Mg0/RP0/CPU0/0
+    networks:
+      host2-pe3:
+        ipv4_address: 172.30.2.1
+      mgmt:
+        ipv4_address: 172.28.0.3
+  rr1:
+    xr_startup_cfg: rr1.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Mg0/RP0/CPU0/0
+    networks:
+      mgmt:
+        ipv4_address: 172.28.0.11
+  rr2:
+    xr_startup_cfg: rr2.cfg
+    xr_interfaces:
+      - Gi0/0/0/0
+      - Gi0/0/0/1
+      - Mg0/RP0/CPU0/0
+    networks:
+      mgmt:
+        ipv4_address: 172.28.0.12
+
+xr_l2networks:
+  - ["pe1:Gi0/0/0/0", "pe2:Gi0/0/0/0"]
+  - ["pe1:Gi0/0/0/1", "pe3:Gi0/0/0/0"]
+  - ["pe2:Gi0/0/0/1", "pe3:Gi0/0/0/1"]
+  - ["pe1:Gi0/0/0/3", "rr1:Gi0/0/0/0"]
+  - ["pe3:Gi0/0/0/3", "rr2:Gi0/0/0/0"]
+  - ["rr1:Gi0/0/0/1", "rr2:Gi0/0/0/1"]
+
+networks:
+  mgmt:
+    xr_interfaces:
+      - pe1:Mg0/RP0/CPU0/0
+      - pe2:Mg0/RP0/CPU0/0
+      - pe3:Mg0/RP0/CPU0/0
+      - rr1:Mg0/RP0/CPU0/0
+      - rr2:Mg0/RP0/CPU0/0
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.254
+  host1-pe1:
+    ipam:
+      config:
+        - subnet: 172.30.1.0/24
+          gateway: 172.30.1.254
+    xr_interfaces:
+      - pe1:Gi0/0/0/2
+  host2-pe3:
+    ipam:
+      config:
+        - subnet: 172.30.2.0/24
+          gateway: 172.30.2.254
+    xr_interfaces:
+      - pe3:Gi0/0/0/2
