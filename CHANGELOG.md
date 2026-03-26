@@ -5,6 +5,10 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
+### v1.3.1 (2026-03-26)
+
+- Add image upgrade instructions
+
 ### v1.3.2 (2026-03-03)
 - Expand sample topologies and improve AI-assisted lab skills
 - New sample topologies for common deployment patterns
