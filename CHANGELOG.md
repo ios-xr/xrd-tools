@@ -5,7 +5,7 @@
 
 The v1 release supports Cisco IOS-XR release versions 7.7.1 and above.
 
-### v1.3.1 (2026-03-26)
+### v1.3.3 (2026-03-26)
 
 - Add image upgrade instructions
 
