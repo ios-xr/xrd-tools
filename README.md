@@ -120,6 +120,19 @@ Example workflow to install a bugfix:
 - Stop any XRd instances using the old image.
 - Launch new instances of XRd using the updated image, with previous set of launch arguments and volumes.
 
+## Image upgrades
+Similarly to [Apply Bugfixes](#apply-bugfixes), XRd has a different workflow for image upgrades too.
+
+Instead of installing new XRd images in place, the approach is to start a new container with the new image to replace the old container.
+
+Runtime state (such as running config) is preserved via the use of a container volume mounted at `/xr-storage` in the XRd container (see `launch-xrd` for an example). XRd will then use this to preserve key parts of the XR filesystem.
+
+The workflow for performing an image upgrade is as follows:
+ 1. Ensure use of a container volume to preserve state.
+ 2. Before shutting down the old version container, execute `clear configuration ascii inconsistency` to ensure any recent XR commits have been backed up to the persistent volume.
+ 3. Shut down old container.
+ 4. Startup new container with new image version, using the same container volume from the old container.
+
 ## AppArmor
 
 XRd is able to run on AppArmor-enabled Ubuntu environments only if the `xrd-unconfined` AppArmor profile is installed and enabled. 
